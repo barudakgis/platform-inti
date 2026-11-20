@@ -1,0 +1,20 @@
+name = "api-ringan"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+[vars]
+# Domain yang boleh memanggil API (pisahkan dengan koma). Pakai "*" hanya saat uji coba.
+ALLOWED_ORIGINS = "https://jorris80.github.io,http://localhost:5173"
+# app/collection yang boleh DIBACA tanpa login admin
+PUBLIC_READ = "nikahkita/ucapan"
+# app/collection yang boleh DITAMBAH tanpa login admin (dibatasi 30/jam per IP)
+PUBLIC_CREATE = "nikahkita/rsvp,nikahkita/ucapan,profil-sawit/kontak"
+
+# ADMIN_TOKEN JANGAN ditulis di sini. Simpan sebagai secret:
+#   npx wrangler secret put ADMIN_TOKEN
+
+[[d1_databases]]
+binding = "DB"
+database_name = "api-ringan-db"
+# Ganti dengan database_id dari perintah: npx wrangler d1 create api-ringan-db
+database_id = "GANTI-DENGAN-DATABASE-ID"
