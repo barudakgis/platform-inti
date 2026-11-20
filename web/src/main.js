@@ -1,6 +1,6 @@
 import './styles.css';
 import { APP, ROLES } from './config.js';
-import { sb, configured, friendlyError } from './lib/supabase.js';
+import { sb, configured, friendlyError, secretKeyUsed, urlValid } from './lib/supabase.js';
 import { state, loadContext, selectOrg, orgSetting, applyBranding, can } from './lib/store.js';
 import { route, startRouter, render as rerender, go } from './lib/router.js';
 import { outboxEvents, pendingCount, flush } from './lib/offline.js';
@@ -78,10 +78,18 @@ async function renderPage(path, viewFn) {
   cleanup = null;
 
   if (!configured) {
-    app.innerHTML = `<div class="center card narrow"><h2>Belum dikonfigurasi</h2>
-      <p>Isi <code>VITE_SUPABASE_URL</code> dan <code>VITE_SUPABASE_KEY</code> di file
-      <code>web/.env.local</code> (lihat <code>.env.example</code>), lalu jalankan ulang
-      <code>npm run dev</code>.</p></div>`;
+    const reason = secretKeyUsed
+      ? '<b>Kunci yang dipakai adalah SECRET / service_role key.</b> Kunci ini menembus semua aturan keamanan dan tidak boleh dipakai di aplikasi. Ganti dengan <b>publishable</b> (sb_publishable_…) atau <b>anon</b> key, lalu segera buat ulang (rotate) secret key di Supabase.'
+      : APP.supabaseUrl && !urlValid
+        ? `Alamat Supabase tidak valid: <code>${esc(APP.supabaseUrl)}</code>. Formatnya harus <code>https://xxxx.supabase.co</code>.`
+        : 'Alamat dan/atau kunci Supabase belum diisi.';
+    app.innerHTML = `<div class="center"><div class="card narrow"><h2>Belum terhubung ke Supabase</h2>
+      <p>${reason}</p>
+      <h3>Bila memakai GitHub Pages</h3>
+      <p>Repo → Settings → Secrets and variables → Actions → tab <b>Secrets</b>: isi
+      <code>VITE_SUPABASE_URL</code> dan <code>VITE_SUPABASE_KEY</code>, lalu Actions → <b>Run workflow</b>.</p>
+      <h3>Bila memakai komputer sendiri</h3>
+      <p>Isi kedua nilai itu di <code>web/.env.local</code>, lalu jalankan ulang <code>npm run dev</code>.</p></div></div>`;
     return;
   }
   if (!state.session) { app.innerHTML = ''; cleanup = await loginView(app); return; }

@@ -1,7 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
-import { APP } from '../config.js';
+import { APP, isSecretKey } from '../config.js';
 
-export const configured = Boolean(APP.supabaseUrl && APP.supabaseKey);
+export const secretKeyUsed = isSecretKey(APP.supabaseKey);
+export const urlValid = /^https?:\/\/[^/\s]+$/.test(APP.supabaseUrl || '');
+export const configured = Boolean(APP.supabaseUrl && APP.supabaseKey && urlValid && !secretKeyUsed);
 
 export const sb = configured
   ? createClient(APP.supabaseUrl, APP.supabaseKey, {
