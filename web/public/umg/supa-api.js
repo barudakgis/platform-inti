@@ -4,16 +4,14 @@
  *
  * TAHAP 2a (baca data): health, branding.get, db.info, auth.login, auth.logout, boot,
  *   features.list, media.get, users.list, audit.list, license.status.
- * Aksi lain (simpan/sinkron/review → 2b; pengguna/pengaturan/lisensi → 2c) dijawab
- *   "belum dipindah", dan selama tahap 2a aplikasi berjalan BACA-SAJA agar tidak ada
- *   data yang tertahan di HP.
+ * TAHAP 2b (tulis data): sync.push (+ unggah foto ke Storage), features.review,
+ *   projects.save/delete, layers.save/delete.
+ * Aksi Tahap 2c (pengguna/pengaturan/profil/lisensi) masih dijawab "belum dipindah".
  */
 'use strict';
 var SupaApi = (function () {
-  var STAGE = '2a';
+  var STAGE = '2b';
   var NEXT = {
-    'sync.push': '2b', 'features.review': '2b', 'projects.save': '2b', 'projects.delete': '2b',
-    'layers.save': '2b', 'layers.delete': '2b',
     'settings.save': '2c', 'profile.save': '2c', 'profile.password': '2c', 'users.save': '2c', 'license.activate': '2c'
   };
   var TIMEOUT = 45000;
@@ -65,7 +63,7 @@ var SupaApi = (function () {
       return { code: 'UNAUTHENTICATED', message: 'Sesi berakhir. Silakan login kembali.' };
     }
     if ((e && e.code === 'PGRST202') || /Could not find the function/i.test(msg)) {
-      return { code: 'SETUP', message: 'Fungsi database Tahap ' + STAGE + ' belum dipasang. Jalankan file SQL 20261122000001_umg_tahap2a_baca.sql di Supabase → SQL Editor.' };
+      return { code: 'SETUP', message: 'Fungsi database Tahap ' + STAGE + ' belum dipasang. Jalankan file SQL Tahap 2a & 2b (folder supabase/migrations) di Supabase → SQL Editor.' };
     }
     if (/row-level security|permission denied/i.test(msg)) return { code: 'FORBIDDEN', message: 'Anda tidak punya izin untuk tindakan ini (cek role / lisensi).' };
     if (/Too Many Requests|rate limit/i.test(msg)) return { code: 'RATE_LIMIT', message: 'Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.' };
@@ -189,6 +187,78 @@ var SupaApi = (function () {
   H['audit.list'] = async function (p) { await needSession(); return rpc('umg2_audit_list', { p_org: orgId(), p_limit: Math.min(Number(p.limit) || 200, 1000) }); };
 
   H['license.status'] = async function () { await needSession(); return stageLicense(await rpc('umg2_license_status', { p_org: orgId() })); };
+
+  // ---------------------------------------------------------------- TAHAP 2b: tulis
+  var IMG_RE = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/;
+  var IMG_MAGIC = { jpeg: '/9j/', png: 'iVBOR', webp: 'UklGR' };
+  var MAX_PHOTO_CHARS = 900000;   // sama dengan APP.MAX_PHOTO_CHARS di GAS (~650 KB)
+
+  function needOrg() { var o = orgId(); if (!o) throw appErr('NO_ORG', 'Organisasi belum terpilih. Muat ulang aplikasi lalu login kembali.'); return o; }
+
+  /** Foto baru (data URL) → unggah ke Storage files/<org>/umg/photos/<id fitur>/<op>_<n>.jpg, ganti dengan ref "storage:…".
+   *  Nama file tetap (op_id + urutan) → bila sinkron diulang, file yang sama ditimpa, bukan dobel. */
+  async function preparePhotos(org, op) {
+    if (!op || op.type !== 'upsert' || !op.data || !Array.isArray(op.data.photos)) return op;
+    var fid = String(op.data.id || '');
+    if (!/^[A-Za-z0-9-]{8,64}$/.test(fid) || !/^[A-Za-z0-9-]{8,64}$/.test(String(op.op_id || ''))) return op;   // server yang menolak
+    var out = [];
+    for (var i = 0; i < op.data.photos.length && i < 7; i++) {
+      var ph = op.data.photos[i];
+      if (typeof ph !== 'string' || ph.indexOf('data:') !== 0) { out.push(ph); continue; }
+      if (ph.length > MAX_PHOTO_CHARS) throw appErr('FILE_TOO_LARGE', 'Foto terlalu besar (maks ' + Math.round(MAX_PHOTO_CHARS / 1370) + ' KB).');
+      var m = IMG_RE.exec(ph);
+      if (!m) throw appErr('BAD_FILE', 'Foto harus JPEG/PNG/WebP.');
+      if (m[2].indexOf(IMG_MAGIC[m[1]]) !== 0) throw appErr('BAD_FILE', 'Isi file tidak sesuai format ' + m[1] + '.');
+      var bin = atob(m[2]), arr = new Uint8Array(bin.length);
+      for (var k = 0; k < bin.length; k++) arr[k] = bin.charCodeAt(k);
+      var path = org + '/umg/photos/' + fid + '/' + op.op_id + '_' + i + '.' + (m[1] === 'jpeg' ? 'jpg' : m[1]);
+      var r = await withTimeout(client().storage.from('files').upload(path, new Blob([arr], { type: 'image/' + m[1] }), { upsert: true, contentType: 'image/' + m[1], cacheControl: '31536000' }));
+      if (r.error) {
+        var st = Number(r.error.statusCode || r.error.status || 0);
+        if (isNet(r.error) || st >= 500 || st === 429) throw netErr('Unggah foto tertunda (jaringan/server). Akan dicoba lagi.');
+        if (st === 403 || /row-level security|Unauthorized|permission/i.test(r.error.message || '')) throw appErr('FORBIDDEN', 'Tidak diizinkan mengunggah foto (cek role UMG / lisensi).');
+        if (st === 413 || /too large|exceeded/i.test(r.error.message || '')) throw appErr('FILE_TOO_LARGE', 'Foto terlalu besar untuk penyimpanan.');
+        throw appErr('UPLOAD_FAILED', 'Unggah foto gagal: ' + String(r.error.message || r.error).substr(0, 120));
+      }
+      out.push('storage:' + path);
+    }
+    var copy = Object.assign({}, op); copy.data = Object.assign({}, op.data, { photos: out });
+    return copy;
+  }
+
+  H['sync.push'] = async function (p) {
+    await needSession();
+    var org = needOrg(), ops = Array.isArray(p.ops) ? p.ops : [], early = {}, send = [];
+    if (!ops.length) return { results: [] };
+    for (var i = 0; i < ops.length; i++) {
+      try { send.push(await preparePhotos(org, ops[i])); }
+      catch (e) {
+        if (e.network || isNet(e)) throw (e.network ? e : netErr('Unggah foto tertunda (jaringan).'));
+        early[ops[i].op_id] = { op_id: ops[i].op_id, status: 'error', code: e.appCode || 'BAD_FILE', message: e.message, permanent: true };
+      }
+    }
+    var res = send.length ? await rpc('umg2_sync_push', { p_org: org, p_ops: send }) : { results: [] };
+    var by = {}, rm = [];
+    (res.results || []).forEach(function (r) {
+      by[r.op_id] = r;
+      (r.removed_photos || []).forEach(function (ref) { if (typeof ref === 'string' && ref.indexOf('storage:') === 0) rm.push(ref.substr(8)); });
+      delete r.removed_photos;
+    });
+    if (rm.length) client().storage.from('files').remove(rm).catch(function () { /* sisa file dibersihkan admin */ });
+    return { results: ops.map(function (o) {
+      return early[o.op_id] || by[o.op_id] || { op_id: o.op_id, status: 'error', code: 'INTERNAL', message: 'Server tidak menjawab operasi ini.', permanent: false };
+    }) };
+  };
+
+  H['features.review'] = async function (p) {
+    await needSession();
+    return rpc('umg2_feature_review', { p_org: needOrg(), p_id: String(p.id || ''), p_decision: String(p.decision || ''), p_note: String(p.note || ''),
+      p_base_version: p.base_version === undefined || p.base_version === null ? null : Number(p.base_version) });
+  };
+  H['projects.save'] = async function (p) { await needSession(); return rpc('umg2_project_save', { p_org: needOrg(), p: p }); };
+  H['projects.delete'] = async function (p) { await needSession(); return rpc('umg2_project_delete', { p_org: needOrg(), p_id: String(p.id || '') }); };
+  H['layers.save'] = async function (p) { await needSession(); return rpc('umg2_layer_save', { p_org: needOrg(), p: p }); };
+  H['layers.delete'] = async function (p) { await needSession(); return rpc('umg2_layer_delete', { p_org: needOrg(), p_id: String(p.id || '') }); };
 
   // ---------------------------------------------------------------- pintu masuk
   /** Dipanggil Api.call. Resolve → jawaban ala GAS; reject → masalah jaringan (data offline tetap aman). */
