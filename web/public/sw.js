@@ -1,6 +1,6 @@
 // Service Worker — membuat aplikasi tetap terbuka tanpa internet.
 // NAIKKAN VERSION setiap rilis agar cache lama dibersihkan.
-const VERSION = 'v1.0.1';
+const VERSION = 'v1.0.2';
 const SHELL = `shell-${VERSION}`;
 const TILES = 'tiles-v1';
 const MAX_TILES = 1500; // ubin peta yang pernah dilihat (jangan unduh massal: dilarang kebijakan OSM)
@@ -42,6 +42,9 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
+
+  // Aplikasi UMG (folder /umg/) punya penyimpanan offline sendiri — jangan disentuh
+  if (url.origin === self.location.origin && url.pathname.includes('/umg/')) return;
 
   // Logo & foto profil publik dari Supabase Storage: simpan agar tampil saat offline
   if (url.pathname.includes('/storage/v1/object/public/')) {
