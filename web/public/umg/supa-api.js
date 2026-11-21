@@ -6,14 +6,14 @@
  *   features.list, media.get, users.list, audit.list, license.status.
  * TAHAP 2b (tulis data): sync.push (+ unggah foto ke Storage), features.review,
  *   projects.save/delete, layers.save/delete.
- * Aksi Tahap 2c (pengguna/pengaturan/profil/lisensi) masih dijawab "belum dipindah".
+ * TAHAP 2c (pengaturan & akun): settings.save (+ logo ke Storage), profile.save (+ foto),
+ *   profile.password (Supabase Auth), users.save (akun baru via Supabase Auth), license.activate.
+ * → Ke-22 aksi GAS sudah berjalan di Supabase.
  */
 'use strict';
 var SupaApi = (function () {
-  var STAGE = '2b';
-  var NEXT = {
-    'settings.save': '2c', 'profile.save': '2c', 'profile.password': '2c', 'users.save': '2c', 'license.activate': '2c'
-  };
+  var STAGE = '2c';
+  var NEXT = {};   // semua aksi sudah dipindah
   var TIMEOUT = 45000;
   var sb = null;
 
@@ -63,7 +63,7 @@ var SupaApi = (function () {
       return { code: 'UNAUTHENTICATED', message: 'Sesi berakhir. Silakan login kembali.' };
     }
     if ((e && e.code === 'PGRST202') || /Could not find the function/i.test(msg)) {
-      return { code: 'SETUP', message: 'Fungsi database Tahap ' + STAGE + ' belum dipasang. Jalankan file SQL Tahap 2a & 2b (folder supabase/migrations) di Supabase → SQL Editor.' };
+      return { code: 'SETUP', message: 'Fungsi database Tahap ' + STAGE + ' belum dipasang. Jalankan file SQL Tahap 2a, 2b & 2c (folder supabase/migrations) di Supabase → SQL Editor.' };
     }
     if (/row-level security|permission denied/i.test(msg)) return { code: 'FORBIDDEN', message: 'Anda tidak punya izin untuk tindakan ini (cek role / lisensi).' };
     if (/Too Many Requests|rate limit/i.test(msg)) return { code: 'RATE_LIMIT', message: 'Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.' };
@@ -148,7 +148,7 @@ var SupaApi = (function () {
     if (r.error) throw r.error;
     var boot;
     try { boot = await rpc('umg2_boot', { p_org: orgId(), p_since: null }); }
-    catch (e) { var f = toFail(e); if (f.code === 'NO_ORG' || f.code === 'FORBIDDEN') await client().auth.signOut({ scope: 'local' }).catch(function () { }); throw e; }
+    catch (e) { var f = toFail(e); if (f.code === 'NO_ORG' || f.code === 'FORBIDDEN' || f.code === 'DISABLED') await client().auth.signOut({ scope: 'local' }).catch(function () { }); throw e; }
     var s = r.data.session;
     return { token: 'sb:' + s.user.id, expires_at: new Date((s.expires_at || 0) * 1000).toISOString(), boot: fixBoot(boot) };
   };
@@ -259,6 +259,133 @@ var SupaApi = (function () {
   H['projects.delete'] = async function (p) { await needSession(); return rpc('umg2_project_delete', { p_org: needOrg(), p_id: String(p.id || '') }); };
   H['layers.save'] = async function (p) { await needSession(); return rpc('umg2_layer_save', { p_org: needOrg(), p: p }); };
   H['layers.delete'] = async function (p) { await needSession(); return rpc('umg2_layer_delete', { p_org: needOrg(), p_id: String(p.id || '') }); };
+
+  // ---------------------------------------------------------------- TAHAP 2c: pengaturan & akun
+  var MAX_LOGO_CHARS = 400000, MAX_AVATAR_CHARS = 250000;   // sama dengan APP.* di GAS
+
+  /** Alamat Platform Inti (induk folder /umg/) — tujuan link reset password & konfirmasi email. */
+  function platformUrl() { return location.origin + location.pathname.replace(/umg\/.*$/, '').replace(/\/?$/, '/'); }
+
+  function later(msg) { setTimeout(function () { if (typeof window.toast === 'function') window.toast(msg, 'ok', 8000); }, 700); }
+
+  /** Klien Supabase sementara (tanpa menyimpan sesi) — untuk cek password lama & membuat akun baru tanpa mengganggu sesi admin. */
+  function tempClient() {
+    var c = cfg();
+    return window.supabase.createClient(c.url, c.key, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'umg-tmp-' + Date.now() } });
+  }
+
+  function checkPassword(pw) {
+    pw = String(pw || '');
+    if (pw.length < 8) throw appErr('WEAK_PASSWORD', 'Password minimal 8 karakter.');
+    if (pw.length > 128) throw appErr('WEAK_PASSWORD', 'Password maksimal 128 karakter.');
+    if (!/[A-Za-z]/.test(pw) || !/[0-9]/.test(pw)) throw appErr('WEAK_PASSWORD', 'Password harus mengandung huruf dan angka.');
+    return pw;
+  }
+
+  /** Unggah gambar (data URL) ke bucket publik "branding" → alamat publik https. */
+  async function uploadBranding(dataUrl, path, maxChars, label) {
+    dataUrl = String(dataUrl || '');
+    if (dataUrl.length > maxChars) throw appErr('FILE_TOO_LARGE', label + ' terlalu besar (maks ' + Math.round(maxChars / 1370) + ' KB).');
+    var m = IMG_RE.exec(dataUrl);
+    if (!m) throw appErr('BAD_FILE', label + ' harus JPEG/PNG/WebP.');
+    if (m[2].indexOf(IMG_MAGIC[m[1]]) !== 0) throw appErr('BAD_FILE', 'Isi file tidak sesuai format ' + m[1] + '.');
+    var bin = atob(m[2]), arr = new Uint8Array(bin.length);
+    for (var k = 0; k < bin.length; k++) arr[k] = bin.charCodeAt(k);
+    path = path + '.' + (m[1] === 'jpeg' ? 'jpg' : m[1]);
+    var r = await withTimeout(client().storage.from('branding').upload(path, new Blob([arr], { type: 'image/' + m[1] }), { upsert: true, contentType: 'image/' + m[1], cacheControl: '31536000' }));
+    if (r.error) {
+      var st = Number(r.error.statusCode || r.error.status || 0);
+      if (isNet(r.error) || st >= 500) throw netErr('Unggah ' + label.toLowerCase() + ' gagal (jaringan). Coba lagi.');
+      if (st === 403 || /row-level security|Unauthorized|permission/i.test(r.error.message || '')) throw appErr('FORBIDDEN', 'Tidak diizinkan mengunggah ' + label.toLowerCase() + '.');
+      throw appErr('UPLOAD_FAILED', 'Unggah ' + label.toLowerCase() + ' gagal: ' + String(r.error.message || r.error).substr(0, 120));
+    }
+    return client().storage.from('branding').getPublicUrl(path).data.publicUrl;
+  }
+
+  /** Hapus file lama di bucket branding bila memang di folder yang diizinkan (gagal = diabaikan). */
+  function removeBranding(url, mustContain) {
+    var mark = '/storage/v1/object/public/branding/', i = String(url || '').indexOf(mark);
+    if (i < 0) return;
+    var path = decodeURIComponent(url.substr(i + mark.length).split('?')[0]);
+    if (path.indexOf(mustContain) !== 0) return;
+    client().storage.from('branding').remove([path]).catch(function () { });
+  }
+
+  H['settings.save'] = async function (p) {
+    await needSession();
+    var org = needOrg(), body = Object.assign({}, p);
+    if (typeof body.logo === 'string' && body.logo.indexOf('data:') === 0) body.logo = await uploadBranding(body.logo, org + '/umg/logo-' + Date.now(), MAX_LOGO_CHARS, 'Logo');
+    var r = await rpc('umg2_settings_save', { p_org: org, p: body });
+    if (r._old_logo) removeBranding(r._old_logo, org + '/umg/');
+    delete r._old_logo;
+    return r;
+  };
+
+  H['profile.save'] = async function (p) {
+    var s = await needSession(), org = needOrg(), body = Object.assign({}, p);
+    if (typeof body.photo === 'string' && body.photo.indexOf('data:') === 0) body.photo = await uploadBranding(body.photo, org + '/avatars/' + s.user.id + '-' + Date.now(), MAX_AVATAR_CHARS, 'Foto profil');
+    var me = await rpc('umg2_profile_save', { p_org: org, p: body });
+    if (me._old_photo) removeBranding(me._old_photo, org + '/avatars/' + s.user.id + '-');
+    delete me._old_photo;
+    return me;
+  };
+
+  H['profile.password'] = async function (p) {
+    var s = await needSession(), np = checkPassword(p.new_password);
+    var chk = await withTimeout(tempClient().auth.signInWithPassword({ email: s.user.email, password: String(p.old_password || '') }));
+    if (chk.error) {
+      if (isNet(chk.error)) throw netErr();
+      if (/Invalid login credentials/i.test(chk.error.message || '')) throw appErr('BAD_CREDENTIALS', 'Password lama salah.');
+      throw chk.error;
+    }
+    if (String(p.old_password) === np) throw appErr('VALIDATION', 'Password baru harus berbeda dari password lama.');
+    var r = await withTimeout(client().auth.updateUser({ password: np }));
+    if (r.error) {
+      if (/different from the old/i.test(r.error.message || '')) throw appErr('VALIDATION', 'Password baru harus berbeda dari password lama.');
+      if (/weak|characters|at least/i.test(r.error.message || '')) throw appErr('WEAK_PASSWORD', 'Password ditolak Supabase: ' + r.error.message);
+      throw r.error;
+    }
+    await client().auth.signOut({ scope: 'global' }).catch(function () { });   // cabut semua sesi, seperti versi GAS
+    return { changed: true, relogin: true };
+  };
+
+  H['users.save'] = async function (p) {
+    await needSession();
+    var org = needOrg(), body = Object.assign({}, p), notes = [], pw = body.password;
+    delete body.password;
+    if (!body.id) {
+      var email = String(body.username || '').trim().toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw appErr('VALIDATION', 'Isi EMAIL pengguna (bukan username) yang valid.');
+      body.username = email;
+      if (pw) {
+        checkPassword(pw);
+        var su = await withTimeout(tempClient().auth.signUp({ email: email, password: pw, options: { data: { full_name: String(body.name || '').trim() }, emailRedirectTo: platformUrl() } }));
+        if (su.error) {
+          if (isNet(su.error)) throw netErr();
+          if (/already (registered|exists)/i.test(su.error.message || '') || su.error.code === 'user_already_exists') notes.push('Email ini sudah punya akun — ybs login dengan password miliknya sendiri.');
+          else if (/rate limit|too many/i.test(su.error.message || '')) throw appErr('RATE_LIMIT', 'Batas pengiriman email Supabase tercapai. Coba lagi nanti, atau minta ybs mendaftar sendiri di Platform Inti.');
+          else if (/password/i.test(su.error.message || '')) throw appErr('WEAK_PASSWORD', 'Password ditolak Supabase: ' + su.error.message);
+          else throw su.error;
+        } else if (su.data && su.data.user && su.data.user.identities && su.data.user.identities.length === 0) {
+          notes.push('Email ini sudah punya akun — ybs login dengan password miliknya sendiri.');
+        } else if (su.data && !su.data.session) {
+          notes.push('Akun dibuat. Pengguna harus membuka email konfirmasi dari Supabase dulu, lalu login dengan password awal.');
+        } else notes.push('Akun dibuat — pengguna bisa langsung login dengan email & password awal.');
+      }
+    }
+    var r = await rpc('umg2_user_save', { p_org: org, p: body });
+    if (body.id && pw) {
+      var rs = await withTimeout(client().auth.resetPasswordForEmail(r.username, { redirectTo: platformUrl() }));
+      notes.push(rs.error ? 'Link reset password GAGAL dikirim: ' + rs.error.message : 'Link reset password dikirim ke ' + r.username + '.');
+    }
+    if (notes.length) later(notes.join(' '));
+    return r;
+  };
+
+  H['license.activate'] = async function (p) {
+    await needSession();
+    return rpc('umg2_license_activate', { p_org: needOrg(), p_key: String(p.key || '') });
+  };
 
   // ---------------------------------------------------------------- pintu masuk
   /** Dipanggil Api.call. Resolve → jawaban ala GAS; reject → masalah jaringan (data offline tetap aman). */
