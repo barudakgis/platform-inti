@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Pindah Foto Google Drive → Supabase · UMG</title>
+<style>
+  :root { --a:#0f766e; --bg:#f3f5f8; --line:#e2e8f0; --muted:#64748b; --ok:#16a34a; --bad:#dc2626; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:#0f172a; font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; }
+  main { max-width:720px; margin:0 auto; padding:20px 16px 60px; }
+  h1 { font-size:20px; margin:4px 0 4px; } p { margin:6px 0; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px; margin:14px 0; }
+  label { display:block; font-weight:600; font-size:13px; margin:10px 0 4px; }
+  input { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:9px; font:inherit; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:13px; }
+  button { background:var(--a); color:#fff; border:0; border-radius:9px; padding:10px 16px; font:inherit; font-weight:600; cursor:pointer; margin-top:12px; }
+  button.sec { background:#fff; color:var(--a); border:1px solid var(--a); }
+  button[disabled] { opacity:.5; cursor:default; }
+  .muted { color:var(--muted); font-size:13px; }
+  .bar { height:10px; background:var(--line); border-radius:6px; overflow:hidden; margin-top:10px; }
+  .bar > i { display:block; height:100%; width:0; background:var(--a); transition:width .2s; }
+  #log { font:12px/1.5 ui-monospace,Menlo,Consolas,monospace; max-height:320px; overflow:auto; background:#0f172a; color:#e2e8f0; border-radius:9px; padding:10px; margin-top:10px; white-space:pre-wrap; }
+  .ok { color:var(--ok); font-weight:600; } .bad { color:var(--bad); font-weight:600; }
+  a { color:var(--a); }
+</style>
+</head>
+<body>
+<main>
+  <h1>📷 Pindah foto Google Drive → Supabase</h1>
+  <p class="muted">Alat sekali pakai untuk admin UMG (Tahap 4). Foto lama yang masih tersimpan di Google Drive dipindah ke Supabase Storage,
+    lalu data UMG otomatis memakai foto yang baru. Foto di Drive <b>tidak dihapus</b>.</p>
+
+  <div class="card" id="who">Memeriksa login…</div>
+
+  <div class="card">
+    <b>1. Isi dari proyek Apps Script lama</b>
+    <p class="muted">Jalankan <code>langkah1_MasaTransisi</code> di editor Apps Script, lalu salin 2 baris dari log eksekusi.</p>
+    <label for="gas">URL Web App GAS (…/exec)</label>
+    <input id="gas" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
+    <label for="key">Kunci pindah (umgp_…)</label>
+    <input id="key" placeholder="umgp_…" autocomplete="off">
+    <button id="btn-check" class="sec">2. Cek jumlah foto</button>
+    <p id="count" class="muted"></p>
+    <button id="btn-run" disabled>3. Mulai pindahkan</button>
+    <div class="bar"><i id="prog"></i></div>
+    <div id="log" hidden></div>
+  </div>
+  <p class="muted"><a href="./">← Kembali ke UMG</a></p>
+</main>
+
+<script src="config.js"></script>
+<script src="supabase.js"></script>
+<script>
+'use strict';
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var c = window.UMG_SUPABASE || {};
+  var url = String(c.url || '').trim().replace(/\/+$/, ''), key = String(c.key || '').replace(/\s+/g, '');
+  var sb = window.supabase.createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } });
+  var org = null, items = [];
+  var IMG = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/;
+
+  function log(t, cls) {
+    var l = $('log'); l.hidden = false;
+    var s = document.createElement('div'); if (cls) s.className = cls; s.textContent = t; l.appendChild(s); l.scrollTop = l.scrollHeight;
+  }
+  try { $('gas').value = localStorage.getItem('umg_pf_gas') || ''; } catch (e) { /* abaikan */ }
+
+  async function init() {
+    var s = (await sb.auth.getSession()).data.session;
+    try { org = localStorage.getItem('umg_org'); } catch (e) { org = null; }
+    if (!s || !org) { $('who').innerHTML = '<span class="bad">Belum login.</span> Buka <a href="./">UMG</a>, login sebagai admin, lalu kembali ke halaman ini.'; $('btn-check').disabled = true; return; }
+    $('who').innerHTML = 'Login sebagai <b>' + s.user.email.replace(/</g, '') + '</b>';
+  }
+
+  async function gasPhoto(ref) {
+    var r = await fetch($('gas').value.trim(), { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'pindah.foto', payload: { key: $('key').value.trim(), ref: ref }, token: '' }) });
+    var j = await r.json();
+    if (!j.ok) throw new Error((j.error && j.error.message) || 'GAS menolak');
+    return j.data.data;
+  }
+
+  $('btn-check').onclick = async function () {
+    $('count').textContent = 'Memeriksa…';
+    var r = await sb.rpc('umg2_drive_photos', { p_org: org });
+    if (r.error) { $('count').innerHTML = '<span class="bad">' + r.error.message + '</span>'; return; }
+    items = r.data || [];
+    $('count').innerHTML = items.length ? '<b>' + items.length + '</b> foto masih di Google Drive.' : '<span class="ok">✅ Tidak ada lagi foto di Google Drive. Selesai!</span>';
+    $('btn-run').disabled = !items.length;
+  };
+
+  $('btn-run').onclick = async function () {
+    if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test($('gas').value.trim())) { alert('URL Web App GAS harus berbentuk https://script.google.com/macros/s/…/exec'); return; }
+    if (!/^umgp_[0-9a-f]{20,}$/.test($('key').value.trim())) { alert('Kunci pindah harus diawali umgp_'); return; }
+    try { localStorage.setItem('umg_pf_gas', $('gas').value.trim()); } catch (e) { /* abaikan */ }
+    $('btn-run').disabled = $('btn-check').disabled = true;
+    var done = 0, fail = 0;
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i], id = it.ref.substr(6);
+      try {
+        var data = await gasPhoto(it.ref), m = IMG.exec(data);
+        if (!m) throw new Error('format foto bukan JPEG/PNG/WebP');
+        var bin = atob(m[2]), arr = new Uint8Array(bin.length);
+        for (var k = 0; k < bin.length; k++) arr[k] = bin.charCodeAt(k);
+        var path = org + '/umg/photos/' + it.feature_id + '/drive-' + id + '.' + (m[1] === 'jpeg' ? 'jpg' : m[1]);
+        var up = await sb.storage.from('files').upload(path, new Blob([arr], { type: 'image/' + m[1] }), { upsert: true, contentType: 'image/' + m[1], cacheControl: '31536000' });
+        if (up.error) throw new Error('unggah: ' + up.error.message);
+        var rp = await sb.rpc('umg2_photo_replace', { p_org: org, p_feature: it.feature_id, p_old: it.ref, p_new: 'storage:' + path });
+        if (rp.error) throw new Error(rp.error.message);
+        done++; log('✓ ' + it.layer + ' · ' + it.feature_id.substr(0, 8) + ' · ' + Math.round(arr.length / 1024) + ' KB', 'ok');
+      } catch (e) {
+        fail++; log('✗ ' + it.layer + ' · ' + it.feature_id.substr(0, 8) + ' · ' + (e.message || e), 'bad');
+      }
+      $('prog').style.width = Math.round((i + 1) / items.length * 100) + '%';
+    }
+    log('— Selesai: ' + done + ' berhasil, ' + fail + ' gagal.' + (fail ? ' Tekan "Cek jumlah foto" lalu "Mulai" lagi untuk mengulang yang gagal.' : ''), fail ? 'bad' : 'ok');
+    $('btn-check').disabled = false; $('btn-check').click();
+  };
+  init();
+})();
+</script>
+</body>
+</html>
