@@ -12,7 +12,7 @@
  */
 'use strict';
 var SupaApi = (function () {
-  var STAGE = '2c';
+  var STAGE = '2c'; var BUILD = '2c-org1';
   var NEXT = {};   // semua aksi sudah dipindah
   var TIMEOUT = 45000;
   var sb = null;
@@ -193,7 +193,14 @@ var SupaApi = (function () {
   var IMG_MAGIC = { jpeg: '/9j/', png: 'iVBOR', webp: 'UklGR' };
   var MAX_PHOTO_CHARS = 900000;   // sama dengan APP.MAX_PHOTO_CHARS di GAS (~650 KB)
 
-  function needOrg() { var o = orgId(); if (!o) throw appErr('NO_ORG', 'Organisasi belum terpilih. Muat ulang aplikasi lalu login kembali.'); return o; }
+  /** Organisasi aktif. Bila belum tersimpan di perangkat (storage browser dibersihkan / diblokir), tanyakan ke server. */
+  async function needOrg() {
+    var o = orgId();
+    if (o) return o;
+    try { var b = await rpc('umg2_boot', { p_org: null, p_since: '9999-01-01T00:00:00Z' }); if (b && b.org && b.org.id) { setOrg(b.org.id); return b.org.id; } }
+    catch (e) { var f = toFail(e); if (f.code === 'NO_ORG') throw e; }
+    throw appErr('NO_ORG', 'Organisasi belum terpilih. Keluar, lalu login kembali (jangan pakai mode penyamaran / browser dari WhatsApp).');
+  }
 
   /** Foto baru (data URL) → unggah ke Storage files/<org>/umg/photos/<id fitur>/<op>_<n>.jpg, ganti dengan ref "storage:…".
    *  Nama file tetap (op_id + urutan) → bila sinkron diulang, file yang sama ditimpa, bukan dobel. */
@@ -228,7 +235,7 @@ var SupaApi = (function () {
 
   H['sync.push'] = async function (p) {
     await needSession();
-    var org = needOrg(), ops = Array.isArray(p.ops) ? p.ops : [], early = {}, send = [];
+    var org = (await needOrg()), ops = Array.isArray(p.ops) ? p.ops : [], early = {}, send = [];
     if (!ops.length) return { results: [] };
     for (var i = 0; i < ops.length; i++) {
       try { send.push(await preparePhotos(org, ops[i])); }
@@ -252,13 +259,13 @@ var SupaApi = (function () {
 
   H['features.review'] = async function (p) {
     await needSession();
-    return rpc('umg2_feature_review', { p_org: needOrg(), p_id: String(p.id || ''), p_decision: String(p.decision || ''), p_note: String(p.note || ''),
+    return rpc('umg2_feature_review', { p_org: (await needOrg()), p_id: String(p.id || ''), p_decision: String(p.decision || ''), p_note: String(p.note || ''),
       p_base_version: p.base_version === undefined || p.base_version === null ? null : Number(p.base_version) });
   };
-  H['projects.save'] = async function (p) { await needSession(); return rpc('umg2_project_save', { p_org: needOrg(), p: p }); };
-  H['projects.delete'] = async function (p) { await needSession(); return rpc('umg2_project_delete', { p_org: needOrg(), p_id: String(p.id || '') }); };
-  H['layers.save'] = async function (p) { await needSession(); return rpc('umg2_layer_save', { p_org: needOrg(), p: p }); };
-  H['layers.delete'] = async function (p) { await needSession(); return rpc('umg2_layer_delete', { p_org: needOrg(), p_id: String(p.id || '') }); };
+  H['projects.save'] = async function (p) { await needSession(); return rpc('umg2_project_save', { p_org: (await needOrg()), p: p }); };
+  H['projects.delete'] = async function (p) { await needSession(); return rpc('umg2_project_delete', { p_org: (await needOrg()), p_id: String(p.id || '') }); };
+  H['layers.save'] = async function (p) { await needSession(); return rpc('umg2_layer_save', { p_org: (await needOrg()), p: p }); };
+  H['layers.delete'] = async function (p) { await needSession(); return rpc('umg2_layer_delete', { p_org: (await needOrg()), p_id: String(p.id || '') }); };
 
   // ---------------------------------------------------------------- TAHAP 2c: pengaturan & akun
   var MAX_LOGO_CHARS = 400000, MAX_AVATAR_CHARS = 250000;   // sama dengan APP.* di GAS
@@ -313,7 +320,7 @@ var SupaApi = (function () {
 
   H['settings.save'] = async function (p) {
     await needSession();
-    var org = needOrg(), body = Object.assign({}, p);
+    var org = (await needOrg()), body = Object.assign({}, p);
     if (typeof body.logo === 'string' && body.logo.indexOf('data:') === 0) body.logo = await uploadBranding(body.logo, org + '/umg/logo-' + Date.now(), MAX_LOGO_CHARS, 'Logo');
     var r = await rpc('umg2_settings_save', { p_org: org, p: body });
     if (r._old_logo) removeBranding(r._old_logo, org + '/umg/');
@@ -322,7 +329,7 @@ var SupaApi = (function () {
   };
 
   H['profile.save'] = async function (p) {
-    var s = await needSession(), org = needOrg(), body = Object.assign({}, p);
+    var s = await needSession(), org = (await needOrg()), body = Object.assign({}, p);
     if (typeof body.photo === 'string' && body.photo.indexOf('data:') === 0) body.photo = await uploadBranding(body.photo, org + '/avatars/' + s.user.id + '-' + Date.now(), MAX_AVATAR_CHARS, 'Foto profil');
     var me = await rpc('umg2_profile_save', { p_org: org, p: body });
     if (me._old_photo) removeBranding(me._old_photo, org + '/avatars/' + s.user.id + '-');
@@ -351,7 +358,7 @@ var SupaApi = (function () {
 
   H['users.save'] = async function (p) {
     await needSession();
-    var org = needOrg(), body = Object.assign({}, p), notes = [], pw = body.password;
+    var org = (await needOrg()), body = Object.assign({}, p), notes = [], pw = body.password;
     delete body.password;
     if (!body.id) {
       var email = String(body.username || '').trim().toLowerCase();
@@ -384,7 +391,7 @@ var SupaApi = (function () {
 
   H['license.activate'] = async function (p) {
     await needSession();
-    return rpc('umg2_license_activate', { p_org: needOrg(), p_key: String(p.key || '') });
+    return rpc('umg2_license_activate', { p_org: (await needOrg()), p_key: String(p.key || '') });
   };
 
   // ---------------------------------------------------------------- pintu masuk
