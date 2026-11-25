@@ -1,20 +1,24 @@
 /* SPMS ↔ Supabase (Platform Inti) — pengganti "dapur" GAS (google.script.run).
  * Tampilan SPMS TIDAK diubah: setiap panggilan api(aksi, data) diteruskan ke sini.
  *
- * Cara kerja (Tahap 2a · baca data):
+ * Cara kerja (Tahap 2a baca + 2b tulis):
  *  - Login memakai email & password Platform Inti (Supabase Auth).
  *  - Data dibaca dari tabel spms_* lewat REST Supabase. RLS di database memastikan
  *    tiap orang hanya menerima data yang boleh ia lihat (unit / milik sendiri / organisasi).
  *  - Perhitungan (dashboard, neraca, laba-rugi, biaya, stok, ekspor) memakai KODE SERVER SPMS YANG SAMA
  *    (SpmsEngine, dimuat di index.html) — hasilnya identik dengan versi Google Sheets.
- *  - Menyimpan/mengubah data aktif di Tahap 2b; pengguna, pengaturan, lisensi & AI di Tahap 2c.
+ *  - MENYIMPAN (2b): aturan bisnis SPMS asli dijalankan di sini, semua perubahan satu aksi direkam lalu dikirim
+ *    sekaligus ke spms_apply() (satu transaksi). Database memeriksa izin utama aksi + RLS per baris.
+ *    Berkas foto/video/PDF diunggah ke Storage bucket "spms". Sinkron Mode Lapangan anti-dobel (op_id).
+ *  - Pengguna, pengaturan, lisensi & AI di Tahap 2c.
  */
 'use strict';
 var SpmsSupa = (function () {
-  var STAGE = '2a', BUILD = '2a-1';
+  var STAGE = '2b', BUILD = '2b-1';
   var TIMEOUT = 45000, PAGE = 1000, TTL = 45000;
-  var WRITE = { save: 1, remove: 1, bulkSave: 1, saveSurvey: 1, parcelQA: 1, parcelTransition: 1, replaceTree: 1, uploadMedia: 1,
+  var WRITE = { save: 1, remove: 1, bulkSave: 1, saveSurvey: 1, parcelTransition: 1, replaceTree: 1, uploadMedia: 1,
     journalPost: 1, journalReverse: 1, quickTxn: 1 };
+  var SYNC_OK = { save: 1, saveSurvey: 1, uploadMedia: 1, remove: 1 };
   var LATER = { changePassword: 1, updateProfile: 1, settingsSave: 1, userSave: 1, userReset: 1, licenseActivate: 1,
     aiTest: 1, aiChat: 1, aiGisQuery: 1, aiVision: 1, forecast: 1, aiReport: 1 };
   var sb = null, WHO = null, WHO_AT = 0, STORE = {}, LOADED = {}, NEEDS = {};
@@ -111,7 +115,7 @@ var SpmsSupa = (function () {
     var lim = Object.assign({}, E.PLANS[plan]); if (L.max_users) lim.users = L.max_users;
     var today = new Date().toISOString().slice(0, 10), exp = L.valid_until || '';
     var expired = !w.licensed, days = exp ? Math.ceil((new Date(exp) - new Date(today)) / 86400000) : null;
-    var label = (L.plan ? E.PLANS[plan].label : 'Belum berlangganan') + ' · Platform Inti' + (STAGE === '2a' ? ' · uji Tahap 2a (baca-saja)' : '');
+    var label = (L.plan ? E.PLANS[plan].label : 'Belum berlangganan') + ' · Platform Inti';
     return { plan: plan, label: label, client: (w.org && w.org.name) || '', exp: exp, expired: expired, days_left: days, limits: lim,
       install_id: 'PI-' + String((w.org && w.org.id) || '').slice(0, 8).toUpperCase(), readonly: expired || STAGE === '2a', source: 'platform-inti' };
   }
@@ -179,43 +183,111 @@ var SpmsSupa = (function () {
 
   // ---------------------------------------------------------------- mesin: Db dalam memori
   function NeedSheet(name) { var e = new Error('NEED:' + name); e.needSheet = name; return e; }
-  function readOnly() { return appErr('READ_ONLY', 'Uji Tahap 2a: data hanya bisa DILIHAT. Menyimpan & mengubah data aktif setelah Tahap 2b.'); }
-  var MISS = {};
+  function readOnly() { return appErr('READ_ONLY', 'Aksi ini hanya membaca data.'); }
+  var MISS = {}, REC = null, UNDO = [];
+  var BASECOLS = { id: 1, org_id: 1, created_by: 1, created_at: 1, updated_at: 1, deleted: 1 };
+  function colOk(name, k) { var S = eng().SCHEMA[name]; return !!BASECOLS[k] || !!(S && S.fields.some(function (f) { return f[0] === k; })); }
+  function recIns(name, o) {
+    if (!REC) throw readOnly();
+    if (!eng().SCHEMA[name]) throw appErr('LATER', 'Menyimpan ' + name + ' aktif setelah Tahap 2c.');
+    if (!o.id) o.id = eng().uid_();
+    var rows = STORE[name] || (STORE[name] = []); rows.push(o);
+    UNDO.push(function () { var i = rows.indexOf(o); if (i >= 0) rows.splice(i, 1); });
+    var row = {}; Object.keys(o).forEach(function (k) { if (colOk(name, k)) row[k] = o[k]; });
+    REC.push({ t: 'ins', e: name, row: row });
+    return o;
+  }
   var MemDb = {
     all: function (name) { if (!STORE[name]) { MISS[name] = 1; throw NeedSheet(name); } return STORE[name]; },
     get: function (name, id) { var r = MemDb.all(name); for (var i = 0; i < r.length; i++) if (String(r[i].id) === String(id)) return r[i]; return null; },
-    append: function (name, obj) { if ({ Audit: 1, Sessions: 1, AIRuns: 1, SyncOps: 1 }[name]) return obj; throw readOnly(); },
-    insert: function () { throw readOnly(); }, insertMany: function () { throw readOnly(); }, update: function () { throw readOnly(); },
-    removeHard: function () { throw readOnly(); }, removeWhere: function () { throw readOnly(); },
+    append: function (name, obj) {
+      if (name === 'Audit') { if (REC) REC.push({ t: 'audit', row: obj }); return obj; }
+      if ({ Sessions: 1, AIRuns: 1, SyncOps: 1 }[name]) return obj;
+      throw readOnly();
+    },
+    insert: function (name, obj) { MemDb.all(name); return recIns(name, obj); },
+    insertMany: function (name, objs) { MemDb.all(name); objs.forEach(function (o) { recIns(name, o); }); return objs; },
+    update: function (name, id, patch) {
+      if (!REC) throw readOnly();
+      if (!eng().SCHEMA[name]) throw appErr('LATER', 'Menyimpan ' + name + ' aktif setelah Tahap 2c.');
+      var rows = MemDb.all(name), i = -1;
+      for (var k = 0; k < rows.length; k++) if (String(rows[k].id) === String(id)) { i = k; break; }
+      if (i < 0) throw new Error('Data tidak ditemukan: ' + name + ' ' + id);
+      var prev = rows[i], merged = Object.assign({}, prev), clean = {};
+      Object.keys(patch).forEach(function (k2) { if (k2 !== 'id' && colOk(name, k2)) { merged[k2] = patch[k2]; clean[k2] = patch[k2]; } });
+      rows[i] = merged;
+      UNDO.push(function () { var j = rows.indexOf(merged); if (j >= 0) rows[j] = prev; });
+      REC.push({ t: 'upd', e: name, id: String(id), patch: clean });
+      return merged;
+    },
+    removeHard: function () { throw appErr('UNSUPPORTED', 'Hapus permanen tidak dipakai di versi Supabase.'); },
+    removeWhere: function () { throw appErr('UNSUPPORTED', 'Hapus permanen tidak dipakai di versi Supabase.'); },
     bump: function () {}, shardIds: function () { return ['supabase']; }, mainId: function () { return 'supabase'; }, cellCount: function () { return 0; },
     sheet: function () { throw appErr('UNSUPPORTED', 'Tidak tersedia di versi Supabase.'); }, ss: function () { throw appErr('UNSUPPORTED', 'Tidak tersedia di versi Supabase.'); },
     headers: function () { return []; }
   };
-  /** Jalankan handler server SPMS asli; bila butuh sheet yang belum dimuat → muat lalu ulangi. */
-  async function runEngine(action, ctx, payload) {
-    var E = eng(), fn = E.H[action];
+  function undoAll() { while (UNDO.length) { try { UNDO.pop()(); } catch (e) { /* abaikan */ } } }
+  /** Jalankan handler server SPMS asli; bila butuh sheet yang belum dimuat → muat lalu ulangi.
+   *  opt.write: rekam perubahan (dikembalikan di out.__ops), opt.fn: fungsi kustom (E, ctx, payload). */
+  async function runEngine(action, ctx, payload, opt) {
+    opt = opt || {};
+    var E = eng(), fn = opt.fn || E.H[action];
     if (!fn) throw appErr('UNKNOWN', 'Aksi tidak dikenal: ' + action);
     E.setDb(MemDb); E.setLicense(license);
     var learned = NEEDS[action] || [];
-    await Promise.all(learned.map(function (n) { return load(n); }));
+    await Promise.all(learned.map(function (n) { return load(n, opt.write && LOADED[n] && Date.now() - LOADED[n].at > 4000); }));
     var used = {};
     for (var i = 0; i < 25; i++) {
-      MISS = {};
+      MISS = {}; REC = opt.write ? [] : null; UNDO = [];
       var out, err = null;
-      try { out = fn(ctx, JSON.parse(JSON.stringify(payload || {})), { action: action }); } catch (e) { err = e; }
+      try { out = opt.fn ? fn(E, ctx, JSON.parse(JSON.stringify(payload || {}))) : fn(ctx, JSON.parse(JSON.stringify(payload || {})), { action: action }); } catch (e) { err = e; }
       var miss = Object.keys(MISS);
       if (err && err.needSheet) miss.push(err.needSheet);
-      if (miss.length) {   // ada data yang belum dimuat (termasuk yang "tertelan" try/catch di kode server) → muat & ulangi
+      if (miss.length) {   // ada data yang belum dimuat (termasuk yang "tertelan" try/catch di kode server) → batalkan, muat & ulangi
+        undoAll();
         miss.forEach(function (n) { used[n] = 1; });
         await Promise.all(miss.map(function (n) { return load(n); }));
         continue;
       }
-      if (err) throw err;
+      var ops = REC; REC = null;
+      if (err) { undoAll(); throw err; }
       var names = Object.keys(used).concat(learned).filter(function (v, k, a) { return a.indexOf(v) === k; });
       if (names.join() !== learned.join()) { NEEDS[action] = names; try { localStorage.setItem('spms_needs', JSON.stringify(NEEDS)); } catch (e) { /* abaikan */ } }
-      return JSON.parse(JSON.stringify(out === undefined ? null : out));
+      var res = JSON.parse(JSON.stringify(out === undefined ? null : out));
+      if (opt.write) return { out: res, ops: ops || [], undo: UNDO.splice(0) };
+      return res;
     }
+    undoAll();
     throw appErr('INTERNAL', 'Data yang dibutuhkan terlalu banyak untuk aksi ' + action + '.');
+  }
+  function smallResult(r) {
+    var x = r && r.row ? { id: r.row.id } : r && r.survey_id ? { survey_id: r.survey_id } : r && r.id ? { id: r.id } : true;
+    if (x && typeof x === 'object' && r && r.warnings && r.warnings.length) x.warnings = r.warnings;
+    return x;
+  }
+  /** Simpan: jalankan aturan SPMS (rekam perubahan) → kirim ke spms_apply (satu transaksi). */
+  async function runWrite(action, payload, opId, fn) {
+    var w = await whoami(), ctx = ctxFrom(w, 'sb');
+    if (payload && payload.ent && eng().SCHEMA[payload.ent]) await load(payload.ent, LOADED[payload.ent] && Date.now() - LOADED[payload.ent].at > 4000);
+    var r = await runEngine(action, ctx, payload, { write: true, fn: fn });
+    if (!r.ops.some(function (o) { return o.t !== 'audit'; })) return r.out;   // tidak ada perubahan data (mis. duplikat)
+    var touched = {}; r.ops.forEach(function (o) { if (o.e) touched[o.e] = 1; });
+    var res;
+    try {
+      res = await rpc('spms_apply', { p_org: w.org.id, p_action: action, p_ent: (payload && payload.ent) || null, p_ops: r.ops, p_op_id: opId || null, p_result: smallResult(r.out) });
+    } catch (e) {
+      UNDO = r.undo; undoAll();
+      Object.keys(touched).forEach(function (n) { delete LOADED[n]; });   // muat ulang dari server pada aksi berikutnya
+      throw e;
+    }
+    if (res && res.dup) {   // sudah pernah tersimpan (sinkron diulang) → pakai data server
+      UNDO = r.undo; undoAll();
+      Object.keys(touched).forEach(function (n) { if (LOADED[n]) LOADED[n].at = 0; });
+      var d = res.result; if (d && typeof d === 'object') d.dup = true;
+      return d && typeof d === 'object' && d.id ? { row: { id: d.id }, dup: true } : d;
+    }
+    Object.keys(touched).forEach(function (n) { if (LOADED[n]) LOADED[n].at = 0; });   // ambil versi server (updated_at) saat dibuka lagi
+    return r.out;
   }
 
   // ---------------------------------------------------------------- aksi khusus
@@ -289,6 +361,75 @@ var SpmsSupa = (function () {
     return { data: btoa(unescape(encodeURIComponent(SVG))), mime: 'image/svg+xml', name: 'di-google-drive.svg', legacy: true };
   };
 
+  var MIME_OK = /^(image\/(jpeg|png|webp)|video\/(mp4|webm|quicktime)|application\/pdf)$/;
+  var EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'video/mp4': 'mp4', 'video/webm': 'webm', 'video/quicktime': 'mov', 'application/pdf': 'pdf' };
+  function hex(buf) { return Array.prototype.map.call(new Uint8Array(buf), function (b) { return ('0' + b.toString(16)).slice(-2); }).join(''); }
+  /** Versi Supabase dari h_uploadMedia: berkas ke Storage, baris Media + riwayat pohon lewat spms_apply. */
+  function mediaFn(ref, checksum, size) {
+    return function (E, ctx, p) {
+      E.need_(ctx, 'media', 'C');
+      var parentEnt = p.entity;
+      if (!E.SCHEMA[parentEnt]) throw new Error('Objek media tidak valid.');
+      var parent = MemDb.get(parentEnt, p.entity_id);
+      if (!parent || !E.canTouch_(ctx, parentEnt, parent)) throw new Error('Objek induk tidak ditemukan / di luar akses.');
+      var orgId = parent.org_id || ctx.orgId;
+      var dup = MemDb.all('Media').filter(function (m) { return m.checksum === checksum && m.entity_id === p.entity_id && m.deleted != 1; })[0];
+      if (dup) return { row: dup, duplicate: true };
+      var thumb = String(p.thumb || ''); if (thumb.length > E.APP.CELL_LIMIT) thumb = '';
+      var ver = MemDb.all('Media').filter(function (m) { return m.entity_id === p.entity_id && m.category === p.category && m.deleted != 1; }).length + 1;
+      var row = { id: E.uid_(), org_id: orgId, entity: parentEnt, entity_id: p.entity_id, category: p.category || 'Lainnya', description: String(p.description || '').slice(0, 300),
+        file_id: ref, mime: p.mime, size: size, thumb: thumb, lat: p.lat || '', lng: p.lng || '', captured_at: p.captured_at || E.nowIso_(), checksum: checksum,
+        version: ver, created_by: ctx.user.id, created_at: E.nowIso_(), updated_at: E.nowIso_() };
+      MemDb.insert('Media', row);
+      if (parentEnt === 'Pohon') MemDb.insert('EventPohon', { id: E.uid_(), org_id: orgId, tree_id: parent.id, type: 'Observasi', date: E.fmtDate_(new Date()), description: 'Dokumentasi foto: ' + row.category, created_by: ctx.user.id, created_at: E.nowIso_() });
+      E.audit_(ctx, 'media_upload', 'Media', row.id, parentEnt + ' ' + p.entity_id);
+      return { row: row };
+    };
+  }
+  H.uploadMedia = async function (p, opId) {
+    var w = await whoami();
+    if (!MIME_OK.test(p.mime || '')) throw appErr('BAD_FILE', 'Tipe file tidak diizinkan (hanya JPG/PNG/WEBP, MP4/WEBM/MOV, PDF).');
+    if (typeof p.data !== 'string' || !p.data) throw appErr('BAD_FILE', 'Berkas kosong.');
+    var bin; try { bin = atob(p.data.replace(/^data:[^,]*,/, '')); } catch (e) { throw appErr('BAD_FILE', 'Berkas rusak (base64 tidak valid).'); }
+    if (bin.length > 25 * 1024 * 1024) throw appErr('FILE_TOO_LARGE', 'Ukuran file maksimal 25 MB.');
+    var bytes = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    var checksum = hex(await crypto.subtle.digest('SHA-256', bytes));
+    var light = Object.assign({}, p); delete light.data;    // data besar tidak ikut diproses mesin
+    // uji dulu (izin, induk, duplikat) tanpa mengunggah
+    var dry = await runEngine('uploadMedia', ctxFrom(w, 'sb'), light, { write: true, fn: mediaFn('storage:pending', checksum, bytes.length) });
+    UNDO = dry.undo; undoAll();
+    if (dry.out && dry.out.duplicate) return dry.out;
+    var path = w.org.id + '/media/' + String(p.entity).replace(/[^\w-]/g, '') + '/' + String(p.entity_id).replace(/[^\w.-]/g, '') + '/' + checksum.slice(0, 32) + '.' + EXT[p.mime];
+    var up = await withTimeout(client().storage.from('spms').upload(path, new Blob([bytes], { type: p.mime }), { upsert: true, contentType: p.mime, cacheControl: '31536000' }));
+    if (up.error) {
+      var st = Number(up.error.statusCode || up.error.status || 0);
+      if (isNet(up.error) || st >= 500 || st === 429) throw netErr('Unggah berkas tertunda (jaringan/server). Akan dicoba lagi.');
+      if (st === 403 || /row-level security|Unauthorized|permission/i.test(up.error.message || '')) throw appErr('FORBIDDEN', 'Tidak diizinkan mengunggah berkas (cek role SPMS / lisensi).');
+      if (st === 413 || /too large|exceeded/i.test(up.error.message || '')) throw appErr('FILE_TOO_LARGE', 'Berkas terlalu besar untuk penyimpanan.');
+      throw appErr('UPLOAD_FAILED', 'Unggah berkas gagal: ' + String(up.error.message || up.error).substr(0, 120));
+    }
+    try { return await runWrite('uploadMedia', light, opId, mediaFn('storage:' + path, checksum, bytes.length)); }
+    catch (e) { if (!e.network && !isNet(e)) client().storage.from('spms').remove([path]).catch(function () {}); throw e; }
+  };
+  /** Sinkron Mode Lapangan (antrean offline). Anti-dobel lewat op_id di spms_sync_ops. */
+  H.syncPush = async function (p) {
+    var ops = (p.ops || []).slice(0, 200), results = [];
+    for (var i = 0; i < ops.length; i++) {
+      var op = ops[i];
+      if (!op.op_id) { results.push({ op_id: '', ok: false, error: 'op_id kosong' }); continue; }
+      if (!SYNC_OK[op.action]) { results.push({ op_id: op.op_id, ok: false, error: 'Aksi tidak diizinkan' }); continue; }
+      try {
+        var r = op.action === 'uploadMedia' ? await H.uploadMedia(op.payload || {}, op.op_id) : await runWrite(op.action, op.payload || {}, op.op_id);
+        var res = r && r.dup ? r : smallResult(r);
+        results.push({ op_id: op.op_id, ok: true, dup: !!(r && r.dup), result: res });
+      } catch (e) {
+        var f = toFail(e);   // jaringan → dilempar: antrean tetap di perangkat, yang sudah masuk tidak dobel saat diulang
+        results.push({ op_id: op.op_id, ok: false, error: f.message, conflict: true });
+      }
+    }
+    return results;
+  };
+
   // ---------------------------------------------------------------- pintu utama: { action, token, payload } → { ok, data } | { ok:false, error, auth }
   async function call(req) {
     var t0 = Date.now(), action = req && req.action, payload = (req && req.payload) || {};
@@ -297,10 +438,11 @@ var SpmsSupa = (function () {
       if (H[action] && (action === 'login' || action === 'publicInfo')) data = await H[action](payload);
       else {
         await needSession();
-        if (action === 'syncPush') throw netErr('Sinkron Mode Lapangan aktif setelah Tahap 2b. Data offline tetap tersimpan di perangkat.');
-        if (WRITE[action]) throw readOnly();
-        if (LATER[action]) throw appErr('LATER', 'Fitur ini (' + action + ') aktif setelah Tahap 2c. Saat ini uji Tahap 2a: membaca data.');
-        if (H[action]) data = await H[action](payload);
+        if (action === 'syncPush') data = await H.syncPush(payload);
+        else if (action === 'uploadMedia') data = await H.uploadMedia(payload, null);
+        else if (WRITE[action]) data = await runWrite(action, payload, null);
+        else if (LATER[action]) throw appErr('LATER', 'Fitur ini (' + action + ') aktif setelah Tahap 2c.');
+        else if (H[action]) data = await H[action](payload);
         else data = await runEngine(action, ctxFrom(await whoami(), req.token), payload);
       }
       return { ok: true, data: data, ms: Date.now() - t0 };

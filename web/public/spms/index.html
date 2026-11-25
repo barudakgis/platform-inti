@@ -161,7 +161,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}.tbl th{position:st
         <p class="err" id="lgErr"></p>
       </form>
       <p class="tiny muted">Dengan masuk, Anda menyetujui <a href="#" onclick="Legal.show('terms');return false">Syarat &amp; Ketentuan</a> dan <a href="#" onclick="Legal.show('privacy');return false">Pemberitahuan Privasi</a>.</p>
-      <p class="tiny muted" id="lgVer"></p><p class="tiny muted" id="lgSupa">Edisi Supabase · Platform Inti · Tahap 2a</p>
+      <p class="tiny muted" id="lgVer"></p><p class="tiny muted" id="lgSupa">Edisi Supabase · Platform Inti · Tahap 2b</p>
     </div>
   </section>
 
@@ -189,8 +189,8 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}.tbl th{position:st
   <div id="lightbox" class="hidden"><div class="lb-stage"><img id="lbImg" alt=""></div>
     <div class="lb-bar"><button onclick="UI.zoomBy(1.3)">＋</button><button onclick="UI.zoomBy(1/1.3)">－</button><button onclick="UI.zoomReset()">⟲</button><button onclick="UI.zoomClose()">✕</button></div></div>
 
-  <script src="config.js?v=2a-1"></script>
-<script src="supabase.js?v=2a-1"></script>
+  <script src="config.js?v=2b-1"></script>
+<script src="supabase.js?v=2b-1"></script>
 <script>
 /* Mesin server SPMS (kode .gs asli) — dijalankan di browser; data diisi dari Supabase oleh supa-api.js */
 /* Mock layanan Google Apps Script untuk pengujian (Node & browser). Menegakkan batas nyata: 50.000 karakter/sel, 100KB/kunci cache, range di luar dimensi sheet. */
@@ -2321,11 +2321,12 @@ function h_licenseActivate(ctx, p) {
 }
 
 window.SpmsEngine = { H: handlers_(), SCHEMA: SCHEMA, ROLES: ROLES, APP: APP, PLANS: PLANS,
+  need_: need_, canTouch_: canTouch_, audit_: audit_, uid_: uid_, nowIso_: nowIso_, fmtDate_: fmtDate_,
   setDb: function (d) { Db = d; }, setLicense: function (f) { licenseStatus_ = f; } };
 })();
 </script>
-<script src="supa-api.js?v=2a-1"></script>
-<script>window.BOOT = {"version": "1.2.0 \u00b7 Supabase", "build": "2a-1", "name": "KebunRakyat SPMS", "brand": {"title": "KebunRakyat SPMS", "subtitle": "Manajemen Perkebunan Rakyat"}};</script>
+<script src="supa-api.js?v=2b-1"></script>
+<script>window.BOOT = {"version": "1.2.0 \u00b7 Supabase", "build": "2b-1", "name": "KebunRakyat SPMS", "brand": {"title": "KebunRakyat SPMS", "subtitle": "Manajemen Perkebunan Rakyat"}};</script>
   <script>
 /* ===== JsCore: state, API, router (tombol Back), tema, login/logout ===== */
 'use strict';
