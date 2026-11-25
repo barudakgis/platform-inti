@@ -161,7 +161,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}.tbl th{position:st
         <p class="err" id="lgErr"></p>
       </form>
       <p class="tiny muted">Dengan masuk, Anda menyetujui <a href="#" onclick="Legal.show('terms');return false">Syarat &amp; Ketentuan</a> dan <a href="#" onclick="Legal.show('privacy');return false">Pemberitahuan Privasi</a>.</p>
-      <p class="tiny muted" id="lgVer"></p><p class="tiny muted" id="lgSupa">Edisi Supabase · Platform Inti · Tahap 2b</p>
+      <p class="tiny muted" id="lgVer"></p><p class="tiny muted" id="lgSupa">Edisi Supabase · Platform Inti · Tahap 2c</p>
     </div>
   </section>
 
@@ -189,8 +189,8 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}.tbl th{position:st
   <div id="lightbox" class="hidden"><div class="lb-stage"><img id="lbImg" alt=""></div>
     <div class="lb-bar"><button onclick="UI.zoomBy(1.3)">＋</button><button onclick="UI.zoomBy(1/1.3)">－</button><button onclick="UI.zoomReset()">⟲</button><button onclick="UI.zoomClose()">✕</button></div></div>
 
-  <script src="config.js?v=2b-1"></script>
-<script src="supabase.js?v=2b-1"></script>
+  <script src="config.js?v=2c-2"></script>
+<script src="supabase.js?v=2c-2"></script>
 <script>
 /* Mesin server SPMS (kode .gs asli) — dijalankan di browser; data diisi dari Supabase oleh supa-api.js */
 /* Mock layanan Google Apps Script untuk pengujian (Node & browser). Menegakkan batas nyata: 50.000 karakter/sel, 100KB/kunci cache, range di luar dimensi sheet. */
@@ -2321,12 +2321,13 @@ function h_licenseActivate(ctx, p) {
 }
 
 window.SpmsEngine = { H: handlers_(), SCHEMA: SCHEMA, ROLES: ROLES, APP: APP, PLANS: PLANS,
-  need_: need_, canTouch_: canTouch_, audit_: audit_, uid_: uid_, nowIso_: nowIso_, fmtDate_: fmtDate_,
+  need_: need_, canTouch_: canTouch_, audit_: audit_, uid_: uid_, nowIso_: nowIso_, fmtDate_: fmtDate_, AIProvider: AIProvider, safeUser_: safeUser_,
+  setProp: function (k, v) { var P = PropertiesService.getScriptProperties(); if (v) P.setProperty(k, v); else P.deleteProperty(k); },
   setDb: function (d) { Db = d; }, setLicense: function (f) { licenseStatus_ = f; } };
 })();
 </script>
-<script src="supa-api.js?v=2b-1"></script>
-<script>window.BOOT = {"version": "1.2.0 \u00b7 Supabase", "build": "2b-1", "name": "KebunRakyat SPMS", "brand": {"title": "KebunRakyat SPMS", "subtitle": "Manajemen Perkebunan Rakyat"}};</script>
+<script src="supa-api.js?v=2c-2"></script>
+<script>window.BOOT = {"version": "1.2.0 \u00b7 Supabase", "build": "2c-2", "name": "KebunRakyat SPMS", "brand": {"title": "KebunRakyat SPMS", "subtitle": "Manajemen Perkebunan Rakyat"}};</script>
   <script>
 /* ===== JsCore: state, API, router (tombol Back), tema, login/logout ===== */
 'use strict';
@@ -3348,7 +3349,7 @@ Router.reg('users', { perm: 'users', render: function (el) {
   var load = function () { Promise.all([api('users', {}), Data.list('Petani')]).then(function (r) { var users = r[0];
     UI.table($('[data-t]', el), { ent: 'Users', rows: users, cols: [['name', 'Nama', function (v, u) { return '<img src="' + App.avatar(u) + '" style="width:26px;height:26px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px">' + esc(v); }], ['username', 'Username'], ['role_label', 'Peran'], ['org_id', 'Organisasi', function (v) { return esc(Data.label('Organisasi', v)); }], ['status', 'Status', UI.pill], ['last_login', 'Login terakhir', fdate]],
       actions: function (u) { return can('users', 'U') ? '<button class="ghost sm" data-act="edit">' + ic('edit') + '</button><button class="ghost sm" data-act="reset" title="Reset password">' + ic('key') + '</button>' : ''; },
-      onAction: function (a, u) { if (a === 'edit') Views.userForm(u, load); if (a === 'reset') UI.confirm('Reset password ' + u.username + '?').then(function (ok) { if (ok) api('userReset', { id: u.id }).then(function (r) { UI.modal('Password sementara', '<p>Berikan ke pengguna secara langsung (jangan lewat grup publik):</p><h2 style="user-select:all">' + esc(r.temp_password) + '</h2><p class="tiny muted">Pengguna wajib mengganti saat login.</p>'); }); }); } }); }); };
+      onAction: function (a, u) { if (a === 'edit') Views.userForm(u, load); if (a === 'reset') UI.confirm('Reset password ' + u.username + '?').then(function (ok) { if (ok) api('userReset', { id: u.id }).then(function (r) { UI.modal(r.temp_password ? 'Password sementara' : 'Atur ulang password', r.temp_password ? '<p>Berikan ke pengguna secara langsung (jangan lewat grup publik):</p><h2 style="user-select:all">' + esc(r.temp_password) + '</h2>' : '<p>' + esc(r.message || '') + '</p>'); }); }); } }); }); };
   var a = $('[data-add]', el); if (a) a.onclick = function () { Views.userForm(null, load); };
   load();
 } });
@@ -3356,7 +3357,7 @@ Views.userForm = function (u, done) {
   u = u || { status: 'Aktif', role: 'farmer' };
   var roles = S.boot.roles, orgs = Data.peek('Organisasi') || [], farmers = orgFilter(Data.peek('Petani') || []);
   var rOpt = Object.keys(roles).filter(function (r) { return S.boot.scope === 'all' || r !== 'super_admin'; }).map(function (r) { return '<option value="' + r + '"' + (u.role === r ? ' selected' : '') + '>' + esc(roles[r]) + '</option>'; }).join('');
-  UI.modal(u.id ? 'Ubah Pengguna' : 'Pengguna Baru', '<div class="form-grid"><div><label class="req">Nama</label><input id="uN" value="' + esc(u.name || '') + '"></div><div><label class="req">Username</label><input id="uU" value="' + esc(u.username || '') + '" autocapitalize="none"></div>' +
+  UI.modal(u.id ? 'Ubah Pengguna' : 'Pengguna Baru', '<div class="form-grid"><div><label class="req">Nama</label><input id="uN" value="' + esc(u.name || '') + '"></div><div><label class="req">Email (akun Platform Inti)</label><input id="uU" type="email" value="' + esc(u.username || '') + '" autocapitalize="none"' + (u.id ? ' readonly' : '') + '></div>' +
     '<div><label>Email</label><input id="uE" value="' + esc(u.email || '') + '"></div><div><label>Telepon</label><input id="uP" value="' + esc(u.phone || '') + '"></div><div><label class="req">Peran</label><select id="uR">' + rOpt + '</select></div>' +
     (S.boot.scope === 'all' ? '<div><label>Organisasi</label><select id="uO"><option value="">—</option>' + orgs.map(function (o) { return '<option value="' + o.id + '"' + ((u.org_id || S.orgId) === o.id ? ' selected' : '') + '>' + esc(o.name) + '</option>'; }).join('') + '</select></div>' : '') +
     '<div><label>Tautan data petani (wajib untuk peran Petani)</label><select id="uF"><option value="">—</option>' + farmers.map(function (f) { return '<option value="' + f.id + '"' + (u.farmer_id === f.id ? ' selected' : '') + '>' + esc(f.code + ' · ' + f.name) + '</option>'; }).join('') + '</select></div>' +
@@ -3364,7 +3365,7 @@ Views.userForm = function (u, done) {
     (u.id ? '' : '<div class="full"><label>Password awal (kosongkan = dibuat otomatis)</label><input id="uW" type="text"></div>') + '</div>', {
     actions: [{ label: 'Batal' }, { label: 'Simpan', cls: 'primary', onClick: function (el, close) {
       api('userSave', { data: { id: u.id, name: $('#uN').value, username: $('#uU').value, email: $('#uE').value, phone: $('#uP').value, role: $('#uR').value, org_id: $('#uO') ? $('#uO').value : '', farmer_id: $('#uF').value, status: $('#uS').value, password: $('#uW') ? $('#uW').value : '' } })
-        .then(function (r) { close(); done && done(); if (r.temp_password) UI.modal('Akun dibuat', '<p>Password awal untuk <b>' + esc(r.user.username) + '</b>:</p><h2 style="user-select:all">' + esc(r.temp_password) + '</h2><p class="tiny muted">Wajib diganti saat login pertama.</p>'); });
+        .then(function (r) { close(); done && done(); if (r.temp_password) UI.modal('Akun dibuat', '<p>Password awal untuk <b>' + esc(r.user.username) + '</b>:</p><h2 style="user-select:all">' + esc(r.temp_password) + '</h2><p class="tiny muted">Masuk dengan EMAIL ini di aplikasi; password dapat diganti di Profil Saya.</p>'); });
     } }] });
 };
 
@@ -3437,8 +3438,8 @@ Router.reg('license', { perm: 'license', render: function (el) {
     var bar = function (k, lab) { var u = L.usage[k], m = L.limits[k], p = Math.min(100, Math.round(u / m * 100)); return '<div class="pop-r"><span>' + lab + '</span><b>' + nf(u, 0) + ' / ' + nf(m, 0) + '</b></div><div class="progress"><i style="width:' + p + '%"></i></div>'; };
     el.innerHTML = vh('Lisensi') + (L.secret_default ? '<div class="card" style="border-color:var(--bad)"><b>Peringatan penyedia:</b> LICENSE_SECRET masih bawaan. Ganti di 08_License.gs & Penerbit_Lisensi.html sebelum dijual.</div>' : '') +
       '<div class="grid g2"><div class="card"><h3>Status</h3><div class="pop-r"><span>Paket</span><b>' + esc(L.label) + '</b></div><div class="pop-r"><span>Klien</span><b>' + esc(L.client || '-') + '</b></div><div class="pop-r"><span>Berlaku sampai</span><b>' + fdate(L.exp) + (L.expired ? ' <span class="pill bad">Berakhir</span>' : L.days_left !== null ? ' (' + L.days_left + ' hari)' : '') + '</b></div>' +
-      '<div class="pop-r"><span>ID Instalasi</span><b style="user-select:all">' + esc(L.install_id) + '</b></div><h3 style="margin-top:12px">Pemakaian</h3>' + bar('users', 'Pengguna') + bar('parcels', 'Bidang') + bar('trees', 'Pohon') + '<p class="tiny muted">Kuota AI: ' + nf(L.limits.ai, 0) + ' panggilan/bulan.</p></div>' +
-      '<div class="card"><h3>Aktivasi kunci</h3><p class="tiny muted">Kirim ID Instalasi ke penyedia untuk mendapatkan kunci. Saat lisensi berakhir, data tetap dapat dilihat & diekspor (mode baca-saja).</p><textarea id="lkK" placeholder="SPMS1.xxxxx.yyyyy"></textarea><button class="btn primary block" id="lkA"' + (S.boot.scope === 'all' ? '' : ' disabled') + '>Aktifkan</button></div></div>';
+      '<div class="pop-r"><span>Kode organisasi</span><b style="user-select:all">' + esc(L.install_id) + '</b></div><h3 style="margin-top:12px">Pemakaian</h3>' + bar('users', 'Pengguna') + bar('parcels', 'Bidang') + bar('trees', 'Pohon') + '<p class="tiny muted">Kuota AI: ' + nf(L.limits.ai, 0) + ' panggilan/bulan.</p></div>' +
+      '<div class="card"><h3>Aktivasi kunci</h3><p class="tiny muted">Kirim Kode organisasi ke penyedia untuk mendapatkan kunci SPMS2. Saat lisensi berakhir, data tetap dapat dilihat & diekspor (mode baca-saja).</p><textarea id="lkK" placeholder="SPMS2.xxxxx.yyyyy"></textarea><button class="btn primary block" id="lkA"' + (S.boot.scope === 'all' ? '' : ' disabled') + '>Aktifkan</button></div></div>';
     $('#lkA').onclick = function () { api('licenseActivate', { key: $('#lkK').value }).then(function (s) { S.boot.license = s; App.saveBoot(S.boot); UI.toast('Lisensi ' + s.label + ' aktif s/d ' + fdate(s.exp), 'ok'); Router.refresh(); App.chrome(); }); };
   });
 } });

@@ -10,17 +10,17 @@
  *  - MENYIMPAN (2b): aturan bisnis SPMS asli dijalankan di sini, semua perubahan satu aksi direkam lalu dikirim
  *    sekaligus ke spms_apply() (satu transaksi). Database memeriksa izin utama aksi + RLS per baris.
  *    Berkas foto/video/PDF diunggah ke Storage bucket "spms". Sinkron Mode Lapangan anti-dobel (op_id).
- *  - Pengguna, pengaturan, lisensi & AI di Tahap 2c.
+ *  - 2c: profil & password (Supabase Auth), pengguna & role, pengaturan, lisensi "SPMS2", dan AI lewat
+ *    Edge Function "spms-ai" (API key tersimpan tertutup di server, tidak pernah ke browser).
  */
 'use strict';
 var SpmsSupa = (function () {
-  var STAGE = '2b', BUILD = '2b-1';
+  var STAGE = '2c', BUILD = '2c-2';
   var TIMEOUT = 45000, PAGE = 1000, TTL = 45000;
   var WRITE = { save: 1, remove: 1, bulkSave: 1, saveSurvey: 1, parcelTransition: 1, replaceTree: 1, uploadMedia: 1,
-    journalPost: 1, journalReverse: 1, quickTxn: 1 };
+    journalPost: 1, journalReverse: 1, quickTxn: 1, aiVision: 1 };
   var SYNC_OK = { save: 1, saveSurvey: 1, uploadMedia: 1, remove: 1 };
-  var LATER = { changePassword: 1, updateProfile: 1, settingsSave: 1, userSave: 1, userReset: 1, licenseActivate: 1,
-    aiTest: 1, aiChat: 1, aiGisQuery: 1, aiVision: 1, forecast: 1, aiReport: 1 };
+  var LATER = {};   // Tahap 2c: semua aksi SPMS sudah berjalan di Supabase
   var sb = null, WHO = null, WHO_AT = 0, STORE = {}, LOADED = {}, NEEDS = {};
   try { NEEDS = JSON.parse(localStorage.getItem('spms_needs') || '{}') || {}; } catch (e) { NEEDS = {}; }
 
@@ -67,7 +67,12 @@ var SpmsSupa = (function () {
     if (/Invalid login credentials/i.test(msg)) return { code: 'BAD_CREDENTIALS', message: 'Email atau password salah.' };
     if (/Email not confirmed/i.test(msg)) return { code: 'BAD_CREDENTIALS', message: 'Email belum dikonfirmasi. Buka email konfirmasi dari Supabase dulu.' };
     if (/JWT|not authenticated|refresh token/i.test(msg) || (e && (e.code === 'PGRST301' || e.status === 401))) return { code: 'UNAUTHENTICATED', message: 'Sesi berakhir. Silakan login kembali.' };
-    if ((e && e.code === 'PGRST202') || /Could not find the function/i.test(msg)) return { code: 'SETUP', message: 'Fungsi database Tahap 2a belum dipasang. Jalankan file SQL 20261126000001_spms_tahap2a_baca.sql di Supabase → SQL Editor.' };
+    if ((e && e.code === 'PGRST202') || /Could not find the function/i.test(msg)) {
+      var f2c = /spms_(user_save|settings_save|license_activate|ai_key_set|ai_check)/.test(msg), f2b = /spms_apply|spms_sync/.test(msg);
+      return { code: 'SETUP', message: 'Fungsi database Tahap ' + (f2c ? '2c' : f2b ? '2b' : '2a') + ' belum dipasang. Jalankan file SQL ' +
+        (f2c ? '20261126000003_spms_tahap2c_pengaturan.sql' : f2b ? '20261126000002_spms_tahap2b_tulis.sql' : '20261126000001_spms_tahap2a_baca.sql') + ' di Supabase → SQL Editor.' };
+    }
+    if (/Signups? not allowed|signup.*disabled/i.test(msg)) return { code: 'SETUP', message: 'Pendaftaran akun baru dimatikan di Supabase. Nyalakan Authentication → Sign In / Providers → "Allow new users to sign up", atau minta orangnya mendaftar sendiri di Platform Inti.' };
     if ((e && e.code === '42P01') || /relation .*spms_.* does not exist/i.test(msg)) return { code: 'SETUP', message: 'Tabel SPMS belum ada di proyek Supabase ini. Jalankan SQL Tahap 1 (1_spms_modul.sql & 2_spms_impor.sql).' };
     if (/row-level security|permission denied/i.test(msg)) return { code: 'FORBIDDEN', message: 'Anda tidak punya izin untuk tindakan ini (cek role SPMS / lisensi).' };
     if (/Too Many Requests|rate limit/i.test(msg)) return { code: 'RATE_LIMIT', message: 'Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.' };
@@ -117,7 +122,7 @@ var SpmsSupa = (function () {
     var expired = !w.licensed, days = exp ? Math.ceil((new Date(exp) - new Date(today)) / 86400000) : null;
     var label = (L.plan ? E.PLANS[plan].label : 'Belum berlangganan') + ' · Platform Inti';
     return { plan: plan, label: label, client: (w.org && w.org.name) || '', exp: exp, expired: expired, days_left: days, limits: lim,
-      install_id: 'PI-' + String((w.org && w.org.id) || '').slice(0, 8).toUpperCase(), readonly: expired || STAGE === '2a', source: 'platform-inti' };
+      install_id: String((w.org && w.org.id) || ''), readonly: expired, source: 'platform-inti' };
   }
 
   // ---------------------------------------------------------------- data: Supabase → bentuk baris GAS
@@ -158,7 +163,14 @@ var SpmsSupa = (function () {
       STORE.Audit = (r.data || []).reverse().map(function (a) { return { id: a.id, ts: a.ts, user_id: a.legacy_user_id || a.user_id || '', username: a.username || '',
         org_id: a.unit_id || '', action: a.action || '', entity: a.entity || '', entity_id: a.entity_id || '', detail: a.detail || '' }; });
     },
-    AIRuns: async function () { STORE.AIRuns = []; }, SyncOps: async function () { STORE.SyncOps = []; },
+    AIRuns: async function () {
+      var since = new Date(Date.now() - 40 * 86400000).toISOString();
+      var r = await withTimeout(client().from('spms_ai_runs').select('*').eq('org_id', WHO.org.id).gte('ts', since).order('ts', { ascending: true }).limit(5000));
+      if (r.error) throw r.error;
+      STORE.AIRuns = (r.data || []).map(function (a) { return { id: String(a.id), ts: a.ts, user_id: a.user_id || '', org_id: a.unit_id || '', provider: a.provider || '', model: a.model || '',
+        kind: a.kind || '', tokens_in: a.tokens_in || 0, tokens_out: a.tokens_out || 0, status: a.status || '' }; });
+    },
+    SyncOps: async function () { STORE.SyncOps = []; },
     Sessions: async function () { STORE.Sessions = []; }, _Chunks: async function () { STORE._Chunks = []; }
   };
   /** Muat satu "sheet". Kali kedua hanya mengambil baris yang berubah sejak terakhir (delta). */
@@ -233,12 +245,13 @@ var SpmsSupa = (function () {
     opt = opt || {};
     var E = eng(), fn = opt.fn || E.H[action];
     if (!fn) throw appErr('UNKNOWN', 'Aksi tidak dikenal: ' + action);
-    E.setDb(MemDb); E.setLicense(license);
+    E.setDb(MemDb); E.setLicense(license); E.setProp('AI_KEY', WHO && WHO.ai_has_key ? 'tersimpan-di-supabase' : '');
+    E.AIProvider.call = aiHook;
     var learned = NEEDS[action] || [];
     await Promise.all(learned.map(function (n) { return load(n, opt.write && LOADED[n] && Date.now() - LOADED[n].at > 4000); }));
-    var used = {};
+    var used = {}; AIRES = {};
     for (var i = 0; i < 25; i++) {
-      MISS = {}; REC = opt.write ? [] : null; UNDO = [];
+      MISS = {}; REC = opt.write ? [] : null; UNDO = []; AIPEND = {};
       var out, err = null;
       try { out = opt.fn ? fn(E, ctx, JSON.parse(JSON.stringify(payload || {}))) : fn(ctx, JSON.parse(JSON.stringify(payload || {})), { action: action }); } catch (e) { err = e; }
       var miss = Object.keys(MISS);
@@ -247,6 +260,13 @@ var SpmsSupa = (function () {
         undoAll();
         miss.forEach(function (n) { used[n] = 1; });
         await Promise.all(miss.map(function (n) { return load(n); }));
+        continue;
+      }
+      var pend = Object.keys(AIPEND);
+      if (pend.length) {   // kode SPMS meminta jawaban AI → panggil Edge Function, lalu ulangi dengan jawabannya
+        undoAll();
+        for (var q = 0; q < pend.length; q++) AIRES[pend[q]] = await callAI(AIPEND[pend[q]].kind, AIPEND[pend[q]].input);
+        delete LOADED.AIRuns;
         continue;
       }
       var ops = REC; REC = null;
@@ -260,6 +280,29 @@ var SpmsSupa = (function () {
     undoAll();
     throw appErr('INTERNAL', 'Data yang dibutuhkan terlalu banyak untuk aksi ' + action + '.');
   }
+  // ---------------------------------------------------------------- AI (Edge Function spms-ai)
+  var AIRES = {}, AIPEND = {};
+  function aiKey(kind, input) { var str = (kind || '') + '|' + JSON.stringify(input), h = 5381; for (var i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; return (kind || 'chat') + ':' + h + ':' + str.length; }
+  function aiHook(ctx, input, kind) {
+    var c = eng().AIProvider.config(ctx);
+    if (!c.enabled) throw new Error('AI belum diaktifkan. Admin dapat mengisi API key di Pengaturan → AI.');
+    var k = aiKey(kind, input), r = AIRES[k];
+    if (r) { if (r.error) throw new Error('AI gagal merespons: ' + r.error); return { text: r.text || '', tin: r.tin || 0, tout: r.tout || 0 }; }
+    AIPEND[k] = { kind: kind || 'chat', input: input };
+    throw new Error('Menunggu jawaban AI…');
+  }
+  async function callAI(kind, input) {
+    var w = WHO, r;
+    try { r = await withTimeout(client().functions.invoke('spms-ai', { body: { org_id: w.org.id, kind: kind, input: input } })); }
+    catch (e) { if (e.network || isNet(e)) throw netErr('AI butuh koneksi internet.'); return { error: String(e.message || e) }; }
+    if (!r.error) return r.data || { text: '' };
+    var msg = '', st = 0;
+    try { st = r.error.context && r.error.context.status; var j = await r.error.context.json(); msg = j.error || j.message || ''; } catch (e2) { /* abaikan */ }
+    if (r.error.name === 'FunctionsFetchError') { if (navigator.onLine === false) throw netErr('AI butuh koneksi internet.'); msg = 'Fungsi AI (Edge Function spms-ai) tidak bisa dihubungi — sudah dipasang di Supabase?'; }
+    if (st === 404 && !/AI|kuota|izin/i.test(msg)) msg = 'Edge Function "spms-ai" belum dipasang di Supabase (lihat PANDUAN-TAHAP-2c).';
+    return { error: msg || String(r.error.message || 'gagal') };
+  }
+
   function smallResult(r) {
     var x = r && r.row ? { id: r.row.id } : r && r.survey_id ? { survey_id: r.survey_id } : r && r.id ? { id: r.id } : true;
     if (x && typeof x === 'object' && r && r.warnings && r.warnings.length) x.warnings = r.warnings;
@@ -305,7 +348,7 @@ var SpmsSupa = (function () {
     var r = await withTimeout(client().auth.signInWithPassword({ email: email, password: pass }));
     if (r.error) throw r.error;
     try { await whoami(true); }
-    catch (e) { var f = toFail(e); if (f.code === 'NO_ORG') await client().auth.signOut({ scope: 'local' }).catch(function () {}); throw e; }
+    catch (e) { var f = toFail(e); if (f.code === 'NO_ORG' || f.code === 'DISABLED') await client().auth.signOut({ scope: 'local' }).catch(function () {}); throw e; }
     var boot = await H.bootstrap({});
     return { token: 'sb:' + r.data.session.user.id, boot: boot };
   };
@@ -430,6 +473,109 @@ var SpmsSupa = (function () {
     return results;
   };
 
+  // ---------------------------------------------------------------- TAHAP 2c: akun, pengguna, pengaturan, lisensi
+  function platformUrl() { return location.origin + location.pathname.replace(/spms\/.*$/, '').replace(/\/?$/, '/'); }
+  function later(msg) { setTimeout(function () { if (window.UI && UI.toast) UI.toast(msg, 'warn', 9000); }, 600); }
+  function tempClient() {
+    var c = cfg();
+    return window.supabase.createClient(c.url, c.key, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'spms-tmp-' + Date.now() } });
+  }
+  function checkPassword(pw) {
+    pw = String(pw || '');
+    if (pw.length < 8) throw appErr('VALIDATION', 'Password minimal 8 karakter.');
+    if (pw.length > 128) throw appErr('VALIDATION', 'Password maksimal 128 karakter.');
+    if (!/[A-Za-z]/.test(pw) || !/\d/.test(pw)) throw appErr('VALIDATION', 'Password harus mengandung huruf dan angka.');
+    return pw;
+  }
+  var IMG_RE = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/, IMG_MAGIC = { jpeg: '/9j/', png: 'iVBOR', webp: 'UklGR' };
+  async function uploadAvatar(w, dataUrl) {
+    if (dataUrl.length > 400000) throw appErr('FILE_TOO_LARGE', 'Foto profil terlalu besar (maks ±290 KB). Kompres terlebih dahulu.');
+    var m = IMG_RE.exec(dataUrl);
+    if (!m || m[2].indexOf(IMG_MAGIC[m[1]]) !== 0) throw appErr('BAD_FILE', 'Foto profil harus JPEG/PNG/WebP.');
+    var bin = atob(m[2]), arr = new Uint8Array(bin.length); for (var k = 0; k < bin.length; k++) arr[k] = bin.charCodeAt(k);
+    var path = w.org.id + '/avatars/' + w.user.id + '-' + Date.now() + '.' + (m[1] === 'jpeg' ? 'jpg' : m[1]);
+    var r = await withTimeout(client().storage.from('branding').upload(path, new Blob([arr], { type: 'image/' + m[1] }), { upsert: true, contentType: 'image/' + m[1], cacheControl: '31536000' }));
+    if (r.error) { if (isNet(r.error)) throw netErr('Unggah foto gagal (jaringan).'); throw appErr('UPLOAD_FAILED', 'Unggah foto profil gagal: ' + String(r.error.message || r.error).substr(0, 120)); }
+    return client().storage.from('branding').getPublicUrl(path).data.publicUrl;
+  }
+  H.changePassword = async function (p) {
+    var w = await whoami(), np = checkPassword(p.new1);
+    var t = tempClient(), r = await withTimeout(t.auth.signInWithPassword({ email: w.user.email, password: String(p.old || '') }));
+    if (r.error) { if (isNet(r.error)) throw netErr(); throw appErr('VALIDATION', 'Password lama salah.'); }
+    t.auth.signOut({ scope: 'local' }).catch(function () {});
+    var u = await withTimeout(client().auth.updateUser({ password: np }));
+    if (u.error) { if (/different from the old|same/i.test(u.error.message || '')) throw appErr('VALIDATION', 'Password baru harus berbeda dari password lama.'); throw u.error; }
+    return true;
+  };
+  H.updateProfile = async function (p) {
+    var w = await whoami(), patch = {}, note = '';
+    if (p.name !== undefined) { var nm = String(p.name).trim().slice(0, 120); if (!nm) throw appErr('VALIDATION', 'Nama wajib diisi.'); patch.full_name = nm; }
+    if (p.phone !== undefined) patch.phone = String(p.phone).trim().slice(0, 40);
+    if (p.photo !== undefined) patch.avatar_url = !p.photo ? null : /^data:image\//.test(p.photo) ? await uploadAvatar(w, String(p.photo)) : /^https:\/\//.test(p.photo) ? String(p.photo) : null;
+    if (Object.keys(patch).length) { var r = await withTimeout(client().from('profiles').update(patch).eq('id', w.user.id)); if (r.error) throw r.error; }
+    var em = String(p.email || '').trim().toLowerCase();
+    if (em && em !== String(w.user.email || '').toLowerCase()) {
+      var u = await withTimeout(client().auth.updateUser({ email: em }, { emailRedirectTo: platformUrl() }));
+      if (u.error) throw u.error;
+      note = 'Email baru (' + em + ') aktif setelah Anda mengklik tautan konfirmasi yang dikirim ke email tersebut.';
+    }
+    await whoami(true); delete LOADED.Users;
+    if (note) later(note);
+    return eng().safeUser_(ctxFrom(WHO, 'sb').user);
+  };
+  H.settingsSave = async function (p) {
+    var w = await whoami(), val = Object.assign({}, p.value || {});
+    if (p.key === 'ai' && val.api_key !== undefined) {
+      if (val.api_key) await rpc('spms_ai_key_set', { p_org: w.org.id, p_key: String(val.api_key) });
+      delete val.api_key;
+    }
+    await rpc('spms_settings_save', { p_org: w.org.id, p_key: String(p.key || ''), p_value: val, p_global: !!p.global, p_replace: !!p.replace });
+    await whoami(true); await load('Settings', true);
+    var out = await runEngine('settingsGet', ctxFrom(WHO, 'sb'), {});
+    try { if (out && out.brand) localStorage.setItem('spms_brand', JSON.stringify(out.brand)); } catch (e) { /* abaikan */ }
+    return out;
+  };
+  H.userSave = async function (p) {
+    var w = await whoami(), d = Object.assign({}, p.data || {}), temp = null, note = '';
+    if (!d.id) {
+      var email = String(d.email || d.username || '').trim().toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw appErr('VALIDATION', 'Isi EMAIL pengguna (akun Platform Inti), bukan username.');
+      d.email = email;
+      if (!w.platform_admin) throw appErr('FORBIDDEN', 'Menambah anggota baru hanya bisa oleh owner/admin Platform Inti. Anda tetap bisa mengubah role pengguna yang sudah ada.');
+      temp = checkPassword(d.password || ('Spms' + Math.floor(100000 + Math.random() * 899999)));
+      var su = await withTimeout(tempClient().auth.signUp({ email: email, password: temp, options: { data: { full_name: String(d.name || '') }, emailRedirectTo: platformUrl() } }));
+      if (su.error) {
+        if (/already (been )?registered|already exists/i.test(su.error.message || '')) { temp = null; note = 'Email ini sudah punya akun Platform Inti — ia masuk dengan password miliknya.'; }
+        else throw su.error;
+      } else if (su.data && su.data.user && Array.isArray(su.data.user.identities) && su.data.user.identities.length === 0) {
+        temp = null; note = 'Email ini sudah punya akun Platform Inti — ia masuk dengan password miliknya.';
+      } else if (su.data && !su.data.session) note = 'Akun dibuat. Pengguna harus mengklik tautan konfirmasi di emailnya sebelum bisa masuk.';
+    }
+    delete d.password;
+    var u = await rpc('spms_user_save', { p_org: w.org.id, p: d });
+    delete LOADED.Users;
+    if (note) later(note);
+    return { user: u, temp_password: temp };
+  };
+  H.userReset = async function (p) {
+    var w = await whoami(), ctx = ctxFrom(w, 'sb');
+    eng().need_(ctx, 'users', 'U');
+    await load('Users', true);
+    var u = (STORE.Users || []).filter(function (x) { return x.id === p.id; })[0];
+    if (!u) throw appErr('NOT_FOUND', 'Pengguna tidak ditemukan.');
+    if (String(u.id).indexOf('legacy:') === 0) throw appErr('VALIDATION', 'Akun lama ini belum mendaftar di Platform Inti — belum ada password untuk diatur ulang.');
+    if (u.role === 'super_admin' && ctx.scope !== 'all') throw appErr('FORBIDDEN', 'Tidak dapat mengatur ulang Super Admin.');
+    var r = await withTimeout(client().auth.resetPasswordForEmail(u.email, { redirectTo: platformUrl() }));
+    if (r.error) throw r.error;
+    return { temp_password: '', sent_to: u.email, message: 'Tautan untuk membuat password baru sudah dikirim ke ' + u.email + '. (Demi keamanan, admin tidak bisa mengetik password orang lain.)' };
+  };
+  H.licenseActivate = async function (p) {
+    var w = await whoami();
+    await rpc('spms_license_activate', { p_org: w.org.id, p_key: String(p.key || '') });
+    await whoami(true);
+    return license();
+  };
+
   // ---------------------------------------------------------------- pintu utama: { action, token, payload } → { ok, data } | { ok:false, error, auth }
   async function call(req) {
     var t0 = Date.now(), action = req && req.action, payload = (req && req.payload) || {};
@@ -448,7 +594,8 @@ var SpmsSupa = (function () {
       return { ok: true, data: data, ms: Date.now() - t0 };
     } catch (e) {
       var f = toFail(e);   // jaringan → dilempar ulang (dianggap offline oleh tampilan)
-      return { ok: false, error: f.code === 'UNAUTHENTICATED' ? 'AUTH: ' + f.message : f.message, auth: f.code === 'UNAUTHENTICATED', code: f.code };
+      var isAuth = f.code === 'UNAUTHENTICATED' || f.code === 'DISABLED';
+      return { ok: false, error: isAuth ? 'AUTH: ' + f.message : f.message, auth: isAuth, code: f.code };
     }
   }
 
