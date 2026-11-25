@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Pindah Foto Google Drive → Supabase · SPMS</title>
+<link rel="icon" href="icon-192.png">
+<style>
+  :root { --a:#1f5132; --bg:#f5f7f4; --line:#e2e8e3; --muted:#66736b; --ok:#2e8b57; --bad:#c0392b; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:#1b2620; font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; }
+  main { max-width:720px; margin:0 auto; padding:20px 16px 60px; }
+  h1 { font-size:20px; margin:4px 0; } p { margin:6px 0; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px; margin:14px 0; }
+  label { display:block; font-weight:600; font-size:13px; margin:10px 0 4px; }
+  input { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:9px; font:13px ui-monospace,Menlo,Consolas,monospace; }
+  button { background:var(--a); color:#fff; border:0; border-radius:9px; padding:10px 16px; font:inherit; font-weight:600; cursor:pointer; margin-top:12px; }
+  button.sec { background:#fff; color:var(--a); border:1px solid var(--a); }
+  button[disabled] { opacity:.5; cursor:default; }
+  .muted { color:var(--muted); font-size:13px; }
+  .bar { height:10px; background:var(--line); border-radius:6px; overflow:hidden; margin-top:10px; }
+  .bar > i { display:block; height:100%; width:0; background:var(--a); transition:width .2s; }
+  #log { font:12px/1.5 ui-monospace,Menlo,Consolas,monospace; max-height:340px; overflow:auto; background:#18241d; color:#e2e8e3; border-radius:9px; padding:10px; margin-top:10px; white-space:pre-wrap; }
+  .ok { color:var(--ok); font-weight:600; } .bad { color:var(--bad); font-weight:600; }
+  #log .ok { color:#7ee0a3; } #log .bad { color:#ff9c8f; }
+  a { color:var(--a); }
+</style>
+</head>
+<body>
+<main>
+  <h1>📷 Pindah foto Google Drive → Supabase</h1>
+  <p class="muted">Alat sekali pakai untuk <b>Super Admin SPMS</b> (Tahap 3). Foto, video &amp; PDF lama yang masih tersimpan di Google Drive
+    disalin ke Supabase Storage, lalu SPMS otomatis memakai berkas yang baru. Berkas di Google Drive <b>tidak dihapus</b>.</p>
+
+  <div class="card" id="who">Memeriksa login…</div>
+
+  <div class="card">
+    <b>1. Isi dari proyek Apps Script lama</b>
+    <p class="muted">Di editor Apps Script SPMS lama, jalankan fungsi <code>pindahFotoSiapkan</code>, lalu salin 2 baris dari log eksekusi.</p>
+    <label for="gas">URL Web App (berakhiran /exec)</label>
+    <input id="gas" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
+    <label for="key">Kunci pindah (spmsp_…)</label>
+    <input id="key" placeholder="spmsp_…" autocomplete="off">
+    <button id="btn-check" class="sec">2. Cek jumlah berkas</button>
+    <p id="count" class="muted"></p>
+    <button id="btn-run" disabled>3. Mulai pindahkan</button>
+    <div class="bar"><i id="prog"></i></div>
+    <div id="log" hidden></div>
+  </div>
+  <p class="muted"><a href="./">← Kembali ke SPMS</a></p>
+</main>
+
+<script src="config.js"></script>
+<script src="supabase.js"></script>
+<script>
+'use strict';
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var c = window.SPMS_SUPABASE || {};
+  var url = String(c.url || '').trim().replace(/\s+/g, '').replace(/\/(rest|auth|storage)\/v1.*$/i, '').replace(/\/+$/, ''), key = String(c.key || '').replace(/\s+/g, '');
+  var sb = window.supabase.createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: 'spms-auth' } });
+  var org = null, items = [];
+  var EXT = { 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/heic': 'heic', 'image/gif': 'gif', 'video/mp4': 'mp4', 'video/webm': 'webm', 'video/quicktime': 'mov', 'application/pdf': 'pdf' };
+
+  function log(t, cls) {
+    var l = $('log'); l.hidden = false;
+    var s = document.createElement('div'); if (cls) s.className = cls; s.textContent = t; l.appendChild(s); l.scrollTop = l.scrollHeight;
+  }
+  function hex(buf) { return Array.prototype.map.call(new Uint8Array(buf), function (b) { return ('0' + b.toString(16)).slice(-2); }).join(''); }
+  try { $('gas').value = localStorage.getItem('spms_pf_gas') || ''; } catch (e) { /* abaikan */ }
+
+  async function init() {
+    var s = (await sb.auth.getSession()).data.session;
+    if (!s) { $('who').innerHTML = '<span class="bad">Belum login.</span> Buka <a href="./">SPMS</a>, masuk sebagai Super Admin, lalu kembali ke halaman ini.'; $('btn-check').disabled = true; return; }
+    var w = await sb.rpc('spms_whoami', {});
+    if (w.error) { $('who').innerHTML = '<span class="bad">' + esc(w.error.message) + '</span>'; $('btn-check').disabled = true; return; }
+    org = w.data.org.id;
+    if (w.data.role !== 'super_admin') { $('who').innerHTML = 'Login sebagai <b>' + esc(w.data.user.email) + '</b> — <span class="bad">alat ini khusus Super Admin SPMS.</span>'; $('btn-check').disabled = true; return; }
+    $('who').innerHTML = 'Login sebagai <b>' + esc(w.data.user.email) + '</b> · organisasi <b>' + esc(w.data.org.name) + '</b>';
+  }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (ch) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]; }); }
+
+  async function gasFile(id) {
+    var r, j;
+    try {
+      r = await fetch($('gas').value.trim(), { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'pindahFoto', token: '', payload: { key: $('key').value.trim(), id: id } }) });
+    } catch (e) { throw new Error('Web App tidak bisa dihubungi (cek URL, internet, dan akses Web App "Siapa saja").'); }
+    try { j = await r.json(); } catch (e) { throw new Error('Jawaban Web App bukan JSON — pastikan URL berakhiran /exec dan akses Web App "Siapa saja".'); }
+    if (!j.ok) throw new Error(/Aksi tidak dikenal/.test(j.error || '') ? 'Web App belum versi Tahap 3 (ganti 05_Api.gs + 09_PindahSupabase.gs, lalu Deploy versi baru).' : (j.error || 'Web App menolak'));
+    return j.data;
+  }
+
+  async function moveOne(it) {
+    var f = await gasFile(it.id);
+    var bin = atob(f.data), arr = new Uint8Array(bin.length);
+    for (var k = 0; k < bin.length; k++) arr[k] = bin.charCodeAt(k);
+    var mime = String(f.mime || it.mime || 'application/octet-stream').toLowerCase();
+    var ext = EXT[mime] || 'bin', sum = hex(await crypto.subtle.digest('SHA-256', arr));
+    var path = org + '/media/' + String(it.entity).replace(/[^\w-]/g, '') + '/' + String(it.entity_id).replace(/[^\w.-]/g, '') + '/' + sum.slice(0, 32) + '.' + ext;
+    var up = await sb.storage.from('spms').upload(path, new Blob([arr], { type: mime }), { upsert: true, contentType: mime, cacheControl: '31536000' });
+    if (up.error) throw new Error('unggah: ' + up.error.message);
+    var rp = await sb.rpc('spms_media_drive_replace', { p_org: org, p_media: it.id, p_path: path, p_checksum: sum, p_size: arr.length, p_mime: mime });
+    if (rp.error) throw new Error(rp.error.message);
+    return arr.length;
+  }
+
+  $('btn-check').onclick = async function () {
+    $('count').textContent = 'Memeriksa…';
+    var r = await sb.rpc('spms_media_drive_list', { p_org: org });
+    if (r.error) { $('count').innerHTML = '<span class="bad">' + esc(/Could not find/i.test(r.error.message) ? 'Fungsi belum ada — jalankan SQL Tahap 3 (20261127000001_spms_tahap3.sql) di Supabase.' : r.error.message) + '</span>'; return; }
+    items = r.data || [];
+    $('count').innerHTML = items.length ? '<b>' + items.length + '</b> berkas masih di Google Drive.' : '<span class="ok">✅ Tidak ada lagi berkas di Google Drive. Selesai!</span>';
+    $('btn-run').disabled = !items.length;
+  };
+
+  $('btn-run').onclick = async function () {
+    if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test($('gas').value.trim())) { alert('URL Web App harus berbentuk https://script.google.com/macros/s/…/exec'); return; }
+    if (!/^spmsp_[0-9a-f]{64}$/.test($('key').value.trim())) { alert('Kunci pindah harus diawali spmsp_ (salin utuh dari log Apps Script).'); return; }
+    try { localStorage.setItem('spms_pf_gas', $('gas').value.trim()); } catch (e) { /* abaikan */ }
+    $('btn-run').disabled = $('btn-check').disabled = true;
+    var done = 0, fail = 0, next = 0, stop = false, total = items.length;
+    async function worker() {
+      while (!stop && next < total) {
+        var it = items[next++];
+        try {
+          var n = await moveOne(it);
+          done++; log('✓ ' + it.entity + ' · ' + String(it.id).substr(0, 10) + ' · ' + Math.round(n / 1024) + ' KB', 'ok');
+        } catch (e) {
+          fail++; log('✗ ' + it.entity + ' · ' + String(it.id).substr(0, 10) + ' · ' + (e.message || e), 'bad');
+          if (/Kunci pindah|Web App belum|tidak bisa dihubungi|bukan JSON/.test(e.message || '')) stop = true;   // masalah umum: hentikan semua
+        }
+        $('prog').style.width = Math.round((done + fail) / total * 100) + '%';
+      }
+    }
+    await Promise.all([worker(), worker(), worker()]);
+    log('— Selesai: ' + done + ' berhasil, ' + fail + ' gagal.' + (stop ? ' Dihentikan: perbaiki masalah di atas lalu klik Mulai lagi.' : fail ? ' Klik "Cek jumlah berkas" lalu "Mulai" lagi untuk mengulang yang gagal.' : ''), fail ? 'bad' : 'ok');
+    $('btn-check').disabled = false; $('btn-check').click();
+  };
+  init().catch(function (e) { $('who').innerHTML = '<span class="bad">' + esc(e.message || e) + '</span>'; });
+})();
+</script>
+</body>
+</html>

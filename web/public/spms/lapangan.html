@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f5132">
+<meta name="description" content="KebunRakyat SPMS — manajemen perkebunan rakyat berbasis GIS, mobile & AI">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Mode Lapangan · KebunRakyat SPMS</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<style>
+:root{--pri:#1f5132;--pri2:#2f7a4b;--acc:#c9a227;--bg:#f5f7f4;--card:#fff;--tx:#1b2620;--mut:#66736b;--bd:#e2e8e3;--bad:#c0392b;--ok:#2e8b57;--warn:#d98e04}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+.hidden{display:none!important}
+#appFrame{position:fixed;inset:0;width:100%;height:100%;border:0;background:var(--bg)}
+#fab{position:fixed;z-index:20;width:46px;height:46px;border-radius:50%;background:var(--acc);border:2px solid #fff;box-shadow:0 4px 14px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;font-size:20px;touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab;opacity:.82;padding:0}
+#fab.snap{transition:left .22s ease,top .22s ease}#fab:active{opacity:1}
+#fabTab{position:fixed;z-index:20;width:14px;height:54px;background:var(--acc);opacity:.6;border:0;padding:0;box-shadow:0 2px 8px rgba(0,0,0,.25);touch-action:none}
+#fabTab.l{left:0;border-radius:0 10px 10px 0}#fabTab.r{right:0;border-radius:10px 0 0 10px}
+#fabMenu{position:fixed;z-index:22;background:#fff;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.25);padding:6px;min-width:230px}
+#fabMenu button{display:block;width:100%;text-align:left;border:0;background:none;padding:11px 12px;border-radius:9px;font:500 14px system-ui;cursor:pointer}#fabMenu button:hover{background:#f0f4f1}
+#fabMask{position:fixed;inset:0;z-index:21}
+#field{position:fixed;inset:0;display:flex;flex-direction:column;background:var(--bg)}
+header{background:var(--pri);color:#fff;display:flex;align-items:center;gap:10px;padding:10px 12px;padding-top:calc(10px + env(safe-area-inset-top))}
+header img{width:34px;height:34px;border-radius:9px}header b{flex:1;font-size:15px}.badge{font-size:11px;padding:3px 8px;border-radius:99px;background:rgba(255,255,255,.18);white-space:nowrap}
+main{flex:1;overflow:auto;padding:14px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px 12px;text-align:center;font-weight:600;cursor:pointer}.tile span{display:block;font-size:26px;margin-bottom:4px}
+label{display:block;font-size:13px;font-weight:600;margin:10px 0 4px}input,select,textarea{width:100%;padding:10px 12px;border:1px solid var(--bd);border-radius:10px;font:inherit;background:#fff;min-height:42px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 14px;border-radius:10px;border:1px solid var(--bd);background:#fff;font:600 13px inherit;cursor:pointer;min-height:42px}
+.btn.pri{background:var(--pri);border-color:var(--pri);color:#fff}.btn.acc{background:var(--acc);border-color:var(--acc)}.btn.block{width:100%;margin-top:12px}.btn[disabled]{opacity:.5}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.sp{flex:1}.muted{color:var(--mut)}.tiny{font-size:12px}.err{color:var(--bad)}
+#fmap{height:52vh;border-radius:12px;border:1px solid var(--bd)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);text-align:center;gap:4px;margin:8px 0}.stats b{display:block;font-size:16px}.stats span{font-size:11px;color:var(--mut)}
+.q{display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--bd)}.pill{font-size:11px;padding:2px 8px;border-radius:99px;background:#eee}.pill.ok{background:#d8f0e1;color:var(--ok)}.pill.bad{background:#f8dcd8;color:var(--bad)}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#18241d;color:#fff;padding:10px 14px;border-radius:12px;font-size:13px;z-index:99;max-width:90vw}
+img.pv{max-width:100%;border-radius:10px;margin-top:8px}
+</style>
+</head>
+<body>
+<iframe id="appFrame" class="hidden" title="KebunRakyat SPMS" allow="geolocation *; camera *; microphone *; clipboard-write *; fullscreen *; serial *"></iframe>
+<button id="fab" class="hidden" title="Mode Lapangan — geser untuk memindahkan, ketuk untuk menu" aria-label="Mode Lapangan">⚡</button>
+<button id="fabTab" class="hidden" title="Tampilkan tombol Mode Lapangan" aria-label="Tampilkan tombol"></button>
+<div id="fabMask" class="hidden"></div><div id="fabMenu" class="hidden"></div>
+<section id="field" class="hidden">
+  <header><img src="icon-192.png" alt=""><b id="fTitle">Mode Lapangan</b><span class="badge" id="fNet"></span></header>
+  <main id="fMain"></main>
+</section>
+<div id="toast" class="hidden"></div>
+<script src="config.js?v=3-2"></script>
+<script src="supabase.js?v=3-2"></script>
+<script src="engine.js?v=3-2"></script>
+<script src="supa-api.js?v=3-2"></script>
+<script>var SW_BY_PAGE = 1; if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(function () {});</script>
+<script>
+/* ============ KONFIGURASI: ganti dengan URL Web App Apps Script Anda (akhiran /exec) ============ */
+var CONFIG = { APP_NAME: 'KebunRakyat SPMS', VERSION: '1.2.0 · Supabase 3-2', DEMO: false };   // server: Supabase (config.js), bukan Apps Script
+/* ============================================================================================ */
+'use strict';
+var $ = function (s) { return document.querySelector(s); };
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function toast(m, ms) { var t = $('#toast'); t.textContent = m; t.classList.remove('hidden'); clearTimeout(toast.t); toast.t = setTimeout(function () { t.classList.add('hidden'); }, ms || 2800); }
+var LS = { get: function (k, d) { try { var v = localStorage.getItem('spmsf_' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }, set: function (k, v) { try { localStorage.setItem('spmsf_' + k, JSON.stringify(v)); } catch (e) { toast('Penyimpanan perangkat penuh!'); } }, del: function (k) { localStorage.removeItem('spmsf_' + k); } };
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 9); }
+function nf(n, d) { return Number(n || 0).toLocaleString('id-ID', { maximumFractionDigits: d == null ? 2 : d }); }
+
+/* ---------- IndexedDB: antrean offline (foto aman disimpan di perangkat) ---------- */
+var IDB = {
+  db: null,
+  open: function () { return IDB.db ? Promise.resolve(IDB.db) : new Promise(function (res, rej) { var r = indexedDB.open('spms_field', 1); r.onupgradeneeded = function () { r.result.createObjectStore('queue', { keyPath: 'id' }); }; r.onsuccess = function () { IDB.db = r.result; res(IDB.db); }; r.onerror = function () { rej(r.error); }; }); },
+  tx: function (mode, fn) { return IDB.open().then(function (db) { return new Promise(function (res, rej) { var t = db.transaction('queue', mode), st = t.objectStore('queue'), out = fn(st); t.oncomplete = function () { res(out && out.result !== undefined ? out.result : out); }; t.onerror = function () { rej(t.error); }; }); }); },
+  all: function () { return IDB.tx('readonly', function (s) { return s.getAll(); }); },
+  put: function (o) { return IDB.tx('readwrite', function (s) { s.put(o); }); },
+  del: function (id) { return IDB.tx('readwrite', function (s) { s.delete(id); }); }
+};
+
+/* ---------- Server: Supabase (Platform Inti) lewat mesin SPMS yang sama dengan aplikasi lengkap ---------- */
+function post(action, payload) {
+  if (!window.SpmsSupa) return Promise.reject(new Error('Mesin SPMS belum tersimpan di perangkat — buka halaman ini sekali saat online.'));
+  return SpmsSupa.call({ action: action, token: LS.get('token', ''), payload: payload || {} }).then(function (r) { if (!r.ok) { if (r.auth) LS.del('token'); throw new Error(r.error); } return r.data; });
+}
+
+/* ---------- Aplikasi lengkap (online) = halaman ./ ---------- */
+var configured = !!window.SpmsSupa && !SpmsSupa.cfgProblem();
+function openApp() {
+  if (navigator.onLine === false) { toast('Aplikasi lengkap memerlukan internet. Mode Lapangan tetap bisa dipakai.', 4000); return; }
+  location.href = './';
+}
+
+/* ---------- Tombol mengambang Mode Lapangan: geser, menempel ke tepi, ciutkan ke tab, atau sembunyikan penuh ---------- */
+var Fab = {
+  st: LS.get('fab', { side: 'right', y: 0.7, hidden: 0 }), on: false,
+  save: function () { LS.set('fab', Fab.st); },
+  show: function (on) { Fab.on = on; Fab.place(); },
+  place: function () {
+    var b = $('#fab'), t = $('#fabTab'), st = Fab.st, H = innerHeight, W = innerWidth;
+    var y = Math.max(70, Math.min(H - 70, st.y * H));
+    b.classList.toggle('hidden', !Fab.on || st.hidden !== 0); t.classList.toggle('hidden', !Fab.on || st.hidden !== 1);
+    b.style.left = (st.side === 'left' ? 8 : W - 54) + 'px'; b.style.top = (y - 23) + 'px';
+    t.className = (!Fab.on || st.hidden !== 1 ? 'hidden ' : '') + (st.side === 'left' ? 'l' : 'r'); t.style.top = (y - 27) + 'px';
+  },
+  menu: function () {
+    var m = $('#fabMenu'), b = $('#fab').getBoundingClientRect();
+    m.innerHTML = '<button data-a="open">⚡ Buka Mode Lapangan (offline)</button><button data-a="tab">◧ Ciutkan ke tepi layar</button><button data-a="hide">✕ Sembunyikan penuh</button><div style="font-size:11px;color:#777;padding:4px 12px 6px">Geser tombol ⚡ untuk memindahkan. Tombol yang disembunyikan penuh dapat dimunculkan lagi dari menu aplikasi → Lainnya → Mode Lapangan.</div>';
+    m.classList.remove('hidden'); $('#fabMask').classList.remove('hidden');
+    var mw = m.offsetWidth, mh = m.offsetHeight;
+    m.style.left = Math.max(8, Math.min(innerWidth - mw - 8, Fab.st.side === 'left' ? b.left : b.right - mw)) + 'px';
+    m.style.top = Math.max(8, Math.min(innerHeight - mh - 8, b.top - mh - 8 > 8 ? b.top - mh - 8 : b.bottom + 8)) + 'px';
+    Array.prototype.forEach.call(m.querySelectorAll('[data-a]'), function (x) { x.onclick = function () { Fab.close(); var a = x.dataset.a;
+      if (a === 'open') F.open(); if (a === 'tab') { Fab.st.hidden = 1; Fab.save(); Fab.place(); toast('Ketuk tab kecil di tepi untuk memunculkan lagi.'); }
+      if (a === 'hide') { Fab.st.hidden = 2; Fab.save(); Fab.place(); toast('Tombol disembunyikan. Buka lagi dari menu aplikasi → Mode Lapangan.', 4500); } }; });
+  },
+  close: function () { $('#fabMenu').classList.add('hidden'); $('#fabMask').classList.add('hidden'); },
+  init: function () {
+    var b = $('#fab'), drag = null;
+    b.addEventListener('pointerdown', function (e) { drag = { x: e.clientX, y: e.clientY, moved: false }; b.setPointerCapture(e.pointerId); b.classList.remove('snap'); });
+    b.addEventListener('pointermove', function (e) { if (!drag) return; if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 6) return; drag.moved = true;
+      b.style.left = Math.max(0, Math.min(innerWidth - 46, e.clientX - 23)) + 'px'; b.style.top = Math.max(0, Math.min(innerHeight - 46, e.clientY - 23)) + 'px'; });
+    var end = function (e) { if (!drag) return; var d = drag; drag = null;
+      if (!d.moved) return Fab.menu();
+      Fab.st.side = e.clientX < innerWidth / 2 ? 'left' : 'right'; Fab.st.y = Math.max(0.08, Math.min(0.92, e.clientY / innerHeight));
+      // tarik ke tepi paling luar → otomatis ciut jadi tab
+      if (e.clientX < 4 || e.clientX > innerWidth - 4) Fab.st.hidden = 1;
+      Fab.save(); b.classList.add('snap'); Fab.place(); };
+    b.addEventListener('pointerup', end); b.addEventListener('pointercancel', end);
+    $('#fabTab').onclick = function () { Fab.st.hidden = 0; Fab.save(); Fab.place(); };
+    $('#fabMask').onclick = Fab.close;
+    window.addEventListener('resize', Fab.place);
+    // permintaan dari aplikasi Apps Script (menu → Mode Lapangan)
+    window.addEventListener('message', function (e) {
+      if (!e.data || e.data.spms !== 'field') return;
+      try { e.source && e.source.postMessage({ spms: 'ack' }, '*'); } catch (x) {}
+      Fab.st.hidden = 0; Fab.save(); F.open();
+    });
+  }
+};
+Fab.init();
+
+/* ---------- Tombol Back: tidak menutup aplikasi ---------- */
+var exitArm = 0;
+history.replaceState({ g: 'root' }, '');
+history.pushState({ g: 'top' }, '');
+window.addEventListener('popstate', function (e) {
+  var st = e.state || {};
+  if (st.g === 'root') {
+    if (!$('#field').classList.contains('hidden') && F.stack.length > 1) { F.back(); history.pushState({ g: 'top' }, ''); return; }
+    if (Date.now() - exitArm < 2000) { history.back(); return; }
+    exitArm = Date.now(); toast('Tekan Kembali sekali lagi untuk keluar'); history.pushState({ g: 'top' }, '');
+  }
+});
+
+/* ---------- Mode Lapangan ---------- */
+var F = {
+  stack: [], map: null, sv: null, watch: null,
+  open: function () { Fab.close(); $('#appFrame').classList.add('hidden'); Fab.show(false); $('#field').classList.remove('hidden'); F.stack = []; F.go(LS.get('token', '') ? 'home' : 'login'); },
+  go: function (v, p) { F.stop(); F.stack.push([v, p]); F[v](p || {}); F.net(); },
+  back: function () { F.stop(); F.stack.pop(); var t = F.stack[F.stack.length - 1] || ['home']; F[t[0]](t[1] || {}); },
+  stop: function () { if (F.watch !== null) { navigator.geolocation.clearWatch(F.watch); F.watch = null; } if (F.map) { try { F.map.stop(); F.map.off(); F.map.remove(); } catch (e) {} F.map = null; } },
+  net: function () { IDB.all().then(function (q) { $('#fNet').textContent = (navigator.onLine ? '● Online' : '○ Offline') + (q.length ? ' · ' + q.length + ' antre' : ''); }).catch(function () {}); },
+  data: function () { return LS.get('data', { Bidang: [], Komoditas: [], user: {} }); },
+  login: function () {
+    $('#fMain').innerHTML = '<div class="card"><h3>Masuk Mode Lapangan</h3><p class="tiny muted">Login sekali saat ada sinyal. Setelah itu data lapangan dapat dicatat tanpa internet dan disinkronkan nanti.</p>' +
+      '<label>Email (akun Platform Inti)</label><input id="lU" type="email" inputmode="email" autocapitalize="none" placeholder="nama@email.com"><label>Password</label><input id="lP" type="password"><button class="btn pri block" id="lB">Masuk</button><p class="err" id="lE"></p>' +
+      (configured ? '<button class="btn block" onclick="openApp()">Buka aplikasi lengkap (online)</button>' : '<p class="err tiny">' + esc(window.SpmsSupa ? SpmsSupa.cfgProblem() : 'Mesin SPMS belum termuat.') + '</p>') + '</div>';
+    var ses = null; try { ses = JSON.parse(localStorage.getItem('spms-auth') || 'null'); } catch (e) { ses = null; }
+    if (ses && ses.user && navigator.onLine && configured) {   // sudah masuk di aplikasi lengkap → pakai akun yang sama
+      $('#lE').textContent = 'Memuat akun ' + (ses.user.email || '') + '…';
+      post('bootstrap', {}).then(function (b) { LS.set('token', 'sb:' + ses.user.id); F.saveBoot(b); F.stack = []; F.go('home'); })
+        .catch(function (e) { $('#lE').textContent = ''; $('#lU').value = ses.user.email || ''; });
+    }
+    $('#lB').onclick = function () { var b = this; b.disabled = true; $('#lE').textContent = '';
+      post('login', { username: $('#lU').value, password: $('#lP').value, remember: true, ua: 'PWA-field' }).then(function (r) {
+        LS.set('token', r.token); F.saveBoot(r.boot); F.stack = []; F.go('home');
+      }).catch(function (e) { $('#lE').textContent = navigator.onLine ? e.message : 'Tidak ada koneksi. Login pertama memerlukan internet.'; b.disabled = false; }); };
+  },
+  saveBoot: function (b) { var L = b.lists || {}; LS.set('data', { Bidang: (L.Bidang || []).filter(function (x) { return x.deleted != 1; }).map(function (x) { return { id: x.id, code: x.code, name: x.name, commodity_id: x.commodity_id, geom: x.geom, status: x.status }; }),
+    Komoditas: (L.Komoditas || []).map(function (k) { return { id: k.id, name: k.name }; }), user: { name: b.user.name, role: b.user.role_label }, perms: b.perms, at: new Date().toISOString() }); },
+  home: function () {
+    var d = F.data();
+    $('#fMain').innerHTML = '<div class="card"><div class="row"><div class="sp"><b>' + esc(d.user.name || '') + '</b><div class="tiny muted">' + esc(d.user.role || '') + ' · data perangkat ' + (d.at ? new Date(d.at).toLocaleString('id-ID') : '-') + '</div></div><button class="btn" id="hRef">⟳ Data</button></div></div>' +
+      '<div class="grid"><div class="tile" data-v="survey"><span>📍</span>Ukur Batas Lahan</div><div class="tile" data-v="tree"><span>🌴</span>Catat Pohon</div><div class="tile" data-v="pest"><span>🐛</span>Lapor Hama/Penyakit</div><div class="tile" data-v="queue"><span>⇅</span>Antrean & Sinkron</div><div class="tile" data-v="drone" style="grid-column:1/-1"><span>🛰</span>Foto Udara Drone (PMTiles)</div></div>' +
+      '<div class="card" style="margin-top:12px"><p class="tiny muted">Peta jalan (OpenStreetMap) yang pernah Anda lihat saat online tersimpan di perangkat. Citra satelit hanya tersedia saat online (ketentuan penyedia). Batas bidang & titik GPS tetap tampil tanpa internet.</p>' +
+      (configured ? '<button class="btn block pri" onclick="openApp()">Buka aplikasi lengkap</button>' : '') + '<button class="btn block" id="hOut">Keluar dari mode lapangan</button><p class="tiny muted">' + esc(CONFIG.APP_NAME) + ' PWA v' + CONFIG.VERSION + '</p></div>';
+    Array.prototype.forEach.call(document.querySelectorAll('[data-v]'), function (t) { t.onclick = function () { F.go(t.dataset.v); }; });
+    $('#hRef').onclick = function () { post('bootstrap', {}).then(function (b) { F.saveBoot(b); toast('Data perangkat diperbarui.'); F.home(); }).catch(function (e) { toast(e.message); }); };
+    $('#hOut').onclick = function () { IDB.all().then(function (q) { if (q.length && !confirm(q.length + ' data belum tersinkron dan akan tetap tersimpan di perangkat. Keluar?')) return; LS.del('token'); F.stack = []; F.go('login'); }); };
+  },
+  parcelSel: function (id) { var d = F.data(); return '<select id="' + id + '"><option value="">— pilih bidang —</option>' + d.Bidang.map(function (b) { return '<option value="' + b.id + '">' + esc(b.code + ' · ' + (b.name || '')) + '</option>'; }).join('') + '</select>'; },
+  mkMap: function (el) {
+    F.map = L.map(el, { zoomControl: true, maxZoom: 21 }).setView([-2.5, 118], 5);
+    var osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxNativeZoom: 19, maxZoom: 21, attribution: '© OpenStreetMap contributors' }).addTo(F.map);
+    var sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 19, maxZoom: 21, attribution: 'Tiles © Esri — Esri, Maxar, Earthstar Geographics' });
+    var ctl = L.control.layers({ 'Peta jalan (tersimpan offline)': osm, 'Citra satelit (online)': sat }, null, { collapsed: true }).addTo(F.map);
+    PM.attach(F.map, ctl);
+    F.ref = L.layerGroup().addTo(F.map);
+  },
+  showParcel: function (pid) { F.ref.clearLayers(); var b = F.data().Bidang.filter(function (x) { return x.id === pid; })[0]; if (b && b.geom) { var g = L.geoJSON(JSON.parse(b.geom), { style: { color: '#ffd400', dashArray: '6 4', fillOpacity: 0 } }).addTo(F.ref); F.map.fitBounds(g.getBounds(), { padding: [20, 20], animate: false }); } },
+  /* ---- survei batas ---- */
+  survey: function () {
+    F.sv = LS.get('svdraft', { pid: '', pts: [], rec: false, paused: false, start: '' });
+    $('#fMain').innerHTML = '<div class="card">' + F.parcelSel('sP') + '<div id="fmap" style="margin-top:8px"></div><div class="stats"><div><b id="sN">0</b><span>titik</span></div><div><b id="sA">—</b><span>akurasi</span></div><div><b id="sH">0</b><span>ha</span></div><div><b id="sK">0</b><span>m keliling</span></div></div>' +
+      '<div class="row"><button class="btn pri sp" id="sGo">▶ Rekam</button><button class="btn sp" id="sVx">📍 Ambil titik (5 dtk)</button><button class="btn" id="sUn">↶</button></div><div class="row" style="margin-top:8px"><button class="btn acc sp" id="sFin">✓ Simpan ke antrean</button><button class="btn" id="sClr">Buang</button><button class="btn" onclick="F.back()">‹ Kembali</button></div>' +
+      '<p class="tiny muted">Jejak tersimpan otomatis di perangkat setiap titik. Akurasi GPS HP adalah estimasi perangkat. Hasil adalah pemetaan operasional, bukan batas hukum.</p></div>';
+    F.mkMap('fmap'); $('#sP').value = F.sv.pid; if (F.sv.pid) F.showParcel(F.sv.pid);
+    var line = L.polygon([], { color: '#ff00ff', fillOpacity: .12 }).addTo(F.map), me = null, cur = null, samples = null;
+    var ring = function () { var v = F.sv.pts.filter(function (p) { return p.kind === 'vertex'; }); return (v.length >= 3 ? v : F.sv.pts).map(function (p) { return [p.lng, p.lat]; }); };
+    var upd = function () { var r = ring(); line.setLatLngs(r.map(function (p) { return [p[1], p[0]]; })); var m = Geo.measure(r); $('#sN').textContent = F.sv.pts.length; $('#sH').textContent = nf(m.area / 1e4, 4); $('#sK').textContent = nf(m.perimeter, 0);
+      $('#sGo').textContent = !F.sv.rec ? '▶ Rekam' : F.sv.paused ? '▶ Lanjut' : '⏸ Jeda'; LS.set('svdraft', F.sv); };
+    $('#sP').onchange = function () { F.sv.pid = this.value; F.showParcel(this.value); upd(); };
+    $('#sGo').onclick = function () { if (!F.sv.pid) return toast('Pilih bidang.'); if (!F.sv.rec) { F.sv.rec = true; F.sv.paused = false; F.sv.start = F.sv.start || new Date().toISOString(); } else F.sv.paused = !F.sv.paused; upd(); };
+    $('#sUn').onclick = function () { F.sv.pts.pop(); upd(); };
+    $('#sClr').onclick = function () { if (confirm('Buang draf survei?')) { F.sv = { pid: F.sv.pid, pts: [], rec: false, paused: false, start: '' }; upd(); } };
+    $('#sVx').onclick = function () { if (samples) return; samples = []; var b = this; b.disabled = true; setTimeout(function () { b.disabled = false; var s = samples.filter(function (x) { return x.acc <= 30; }); samples = null; if (!s.length) return toast('Posisi GPS belum memadai.');
+      var w = 0, la = 0, ln = 0; s.forEach(function (x) { var k = 1 / Math.max(x.acc * x.acc, 1e-4); w += k; la += x.lat * k; ln += x.lng * k; }); var acc = Math.max(1 / Math.sqrt(w), Math.min.apply(null, s.map(function (x) { return x.acc; })) * .7);
+      F.sv.pts.push({ lat: la / w, lng: ln / w, acc: Math.round(acc * 100) / 100, ts: new Date().toISOString(), kind: 'vertex', note: 'avg ' + s.length + 'x' }); upd(); toast('Titik sudut ±' + nf(acc, 1) + ' m'); }, 5000); };
+    $('#sFin').onclick = function () { var r = ring(); if (!F.sv.pid || r.length < 3) return toast('Pilih bidang & minimal 3 titik.'); if (Geo.selfIntersect(r)) return toast('Poligon berpotongan sendiri — urungkan titik.');
+      r.push(r[0]); var item = { id: uid(), type: 'survey', label: 'Survei ' + (F.data().Bidang.filter(function (b) { return b.id === F.sv.pid; })[0] || {}).code + ' · ' + nf(Geo.measure(r).area / 1e4, 4) + ' ha', at: new Date().toISOString(),
+        payload: { parcel_id: F.sv.pid, points: F.sv.pts, ring: r, reason: 'Survei Mode Lapangan (PWA offline)', meta: { method: 'Smartphone GPS', crs: 'EPSG:4326', started_at: F.sv.start, ended_at: new Date().toISOString(), device: navigator.userAgent.slice(0, 150) } } };
+      IDB.put(item).then(function () { LS.del('svdraft'); F.sv = { pid: '', pts: [], rec: false }; toast('Tersimpan di antrean perangkat.'); F.back(); Sync.run(); }); };
+    if (navigator.geolocation) F.watch = navigator.geolocation.watchPosition(function (p) {
+      cur = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }; if (samples) samples.push(cur);
+      $('#sA').textContent = '±' + nf(cur.acc, 1) + ' m'; $('#sA').style.color = cur.acc <= 3 ? 'var(--ok)' : cur.acc <= 5 ? 'var(--warn)' : 'var(--bad)';
+      if (!me) { me = L.circleMarker([cur.lat, cur.lng], { radius: 8, color: '#fff', weight: 3, fillColor: '#1a73e8', fillOpacity: 1 }).addTo(F.map); if (!F.sv.pid) F.map.setView([cur.lat, cur.lng], 18); } else me.setLatLng([cur.lat, cur.lng]);
+      if (F.sv.rec && !F.sv.paused && cur.acc <= 15) { var last = F.sv.pts[F.sv.pts.length - 1]; if (!last || Geo.dist([last.lng, last.lat], [cur.lng, cur.lat]) >= 2) { F.sv.pts.push({ lat: cur.lat, lng: cur.lng, acc: Math.round(cur.acc * 100) / 100, ts: new Date().toISOString(), kind: 'track' }); upd(); } }
+    }, function (e) { toast('GPS: ' + e.message); }, { enableHighAccuracy: true, maximumAge: 0 });
+    if ('wakeLock' in navigator) navigator.wakeLock.request('screen').catch(function () {});
+    upd();
+  },
+  /* ---- formulir pohon & hama ---- */
+  photoField: '<label>Foto (opsional)</label><input type="file" id="xF" accept="image/*" capture="environment"><img id="xI" class="pv hidden">',
+  gpsField: '<div class="row" style="margin-top:8px"><button class="btn" id="xG" type="button">📍 Ambil GPS</button><span class="tiny" id="xGI">belum ada koordinat</span></div>',
+  wire: function () {
+    var pos = null, photo = null;
+    $('#xG').onclick = function () { var b = this; b.disabled = true; navigator.geolocation.getCurrentPosition(function (p) { pos = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }; $('#xGI').textContent = pos.lat.toFixed(6) + ', ' + pos.lng.toFixed(6) + ' (±' + Math.round(pos.acc) + ' m)'; b.disabled = false; }, function (e) { toast(e.message); b.disabled = false; }, { enableHighAccuracy: true, timeout: 20000 }); };
+    $('#xF').onchange = function () { var f = this.files[0]; if (!f) return; Promise.all([compress(f, 1600, .82), compress(f, 240, .7)]).then(function (r) { photo = { data: r[0].split(',')[1], thumb: r[1], name: f.name.replace(/\.\w+$/, '') + '.jpg', at: new Date(f.lastModified || Date.now()).toISOString() }; $('#xI').src = r[0]; $('#xI').classList.remove('hidden'); }); };
+    return { pos: function () { return pos; }, photo: function () { return photo; } };
+  },
+  tree: function () {
+    var d = F.data();
+    $('#fMain').innerHTML = '<div class="card"><h3>Catat Pohon Baru</h3><label>Bidang *</label>' + F.parcelSel('tP') + '<label>ID Pohon *</label><input id="tC" placeholder="mis. BDG-001-0123"><div class="grid"><div><label>No. baris</label><input id="tR" type="number"></div><div><label>No. pohon</label><input id="tN" type="number"></div></div>' +
+      '<label>Komoditas *</label><select id="tK">' + d.Komoditas.map(function (k) { return '<option value="' + k.id + '">' + esc(k.name) + '</option>'; }).join('') + '</select><div class="grid"><div><label>Kesehatan</label><select id="tH"><option>Sehat</option><option>Gejala Ringan</option><option>Sakit</option><option>Kritis</option><option selected>Belum Diperiksa</option></select></div><div><label>Tanggal tanam</label><input id="tD" type="date"></div></div>' +
+      '<label>Catatan</label><input id="tT">' + F.gpsField + F.photoField + '<button class="btn pri block" id="tS">Simpan ke antrean</button><button class="btn block" onclick="F.back()">‹ Kembali</button></div>';
+    var w = F.wire();
+    $('#tP').onchange = function () { var b = d.Bidang.filter(function (x) { return x.id === $('#tP').value; })[0]; if (b && b.commodity_id) $('#tK').value = b.commodity_id; if (b && !$('#tC').value) $('#tC').value = b.code + '-'; };
+    $('#tS').onclick = function () {
+      if (!$('#tP').value || !$('#tC').value || !$('#tK').value) return toast('Lengkapi bidang, ID pohon, komoditas.');
+      var p = w.pos(), data = { parcel_id: $('#tP').value, code: $('#tC').value.trim(), commodity_id: $('#tK').value, row_no: $('#tR').value, tree_no: $('#tN').value, health: $('#tH').value, planting_date: $('#tD').value, status: 'Aktif', notes: $('#tT').value, lat: p ? Math.round(p.lat * 1e7) / 1e7 : '', lng: p ? Math.round(p.lng * 1e7) / 1e7 : '' };
+      IDB.put({ id: uid(), type: 'save', ent: 'Pohon', label: 'Pohon ' + data.code, at: new Date().toISOString(), payload: { ent: 'Pohon', data: data }, photo: w.photo(), photoCat: 'Keseluruhan', pos: p }).then(function () { toast('Tersimpan di antrean.'); F.back(); Sync.run(); });
+    };
+  },
+  pest: function () {
+    $('#fMain').innerHTML = '<div class="card"><h3>Lapor Hama / Penyakit</h3><label>Bidang *</label>' + F.parcelSel('pP') + '<div class="grid"><div><label>Jenis</label><select id="pK"><option>Hama</option><option>Penyakit</option><option>Gulma</option><option>Defisiensi Hara</option></select></div><div><label>Tingkat</label><select id="pS"><option>Ringan</option><option>Sedang</option><option>Berat</option></select></div></div>' +
+      '<label>Nama hama/penyakit *</label><input id="pN"><label>Gejala</label><textarea id="pG"></textarea>' + F.gpsField + F.photoField + '<button class="btn pri block" id="pX">Simpan ke antrean</button><button class="btn block" onclick="F.back()">‹ Kembali</button></div>';
+    var w = F.wire();
+    $('#pX').onclick = function () {
+      if (!$('#pP').value || !$('#pN').value) return toast('Lengkapi bidang & nama.');
+      var p = w.pos(), today = new Date().toISOString().slice(0, 10), data = { parcel_id: $('#pP').value, date: today, kind: $('#pK').value, name: $('#pN').value, severity: $('#pS').value, symptoms: $('#pG').value, status: 'Terbuka', lat: p ? p.lat : '', lng: p ? p.lng : '' };
+      IDB.put({ id: uid(), type: 'save', ent: 'HamaPenyakit', label: data.kind + ': ' + data.name, at: new Date().toISOString(), payload: { ent: 'HamaPenyakit', data: data }, photo: w.photo(), photoCat: data.kind === 'Hama' ? 'Hama' : 'Penyakit', pos: p }).then(function () { toast('Tersimpan di antrean.'); F.back(); Sync.run(); });
+    };
+  },
+  drone: function () {
+    var ls = PM.list();
+    (navigator.storage && navigator.storage.estimate ? navigator.storage.estimate() : Promise.resolve({})).then(function (est) {
+      $('#fMain').innerHTML = '<div class="card"><h3>Foto Udara Drone (PMTiles)</h3><p class="tiny muted">Orthomosaic drone format .pmtiles (raster JPG/PNG/WEBP) tampil sebagai layer 🛰 di peta survei — juga tanpa internet. File besar (GB) disalin sekali ke penyimpanan aplikasi dan dibaca per bagian, tidak dimuat penuh ke memori.</p>' +
+        (ls.length ? ls.map(function (l) { return '<div class="q"><span class="sp"><b>' + esc(l.name) + '</b><br><span class="tiny muted">' + (l.kind === 'opfs' ? 'offline · ' + PM.size(l.size) : l.kind === 'url' ? 'online' : l.kind === 'mem' ? 'demo' : 'sesi ini') + ' · zoom ' + l.minZoom + '–' + l.maxZoom + '</span></span><button class="btn" data-del="' + l.id + '">Hapus</button></div>'; }).join('') : '<p class="muted">Belum ada layer.</p>') +
+        '<label>Tambah dari file (offline)</label><input type="file" id="dF" accept=".pmtiles"><div id="dP" class="tiny"></div>' +
+        '<label>atau URL online (server dengan HTTP Range + CORS)</label><div class="row"><input id="dU" placeholder="https://…/ortho.pmtiles" class="sp"><button class="btn" id="dUb">Tambah</button></div>' +
+        (est.quota ? '<p class="tiny muted">Penyimpanan perangkat: terpakai ' + PM.size(est.usage) + ' dari ' + PM.size(est.quota) + '.</p>' : '') +
+        '<button class="btn block" onclick="F.back()">‹ Kembali</button></div>';
+      Array.prototype.forEach.call(document.querySelectorAll('[data-del]'), function (b) { b.onclick = function () { if (confirm('Hapus layer ini dari perangkat?')) PM.remove(b.dataset.del).then(F.drone); }; });
+      $('#dF').onchange = function () { var f = this.files[0]; if (!f) return; $('#dP').textContent = 'Memeriksa ' + PM.size(f.size) + '…';
+        PM.addFile(f, function (p) { $('#dP').textContent = 'Menyalin ke perangkat… ' + Math.round(p * 100) + '%'; }).then(function (l) { toast('Layer "' + l.name + '" siap' + (l.kind === 'opfs' ? ' (offline).' : ' (sesi ini saja).')); F.drone(); }).catch(function (e) { $('#dP').textContent = e.message; }); };
+      $('#dUb').onclick = function () { var u = $('#dU').value.trim(); if (!/^https?:\/\//.test(u)) return toast('URL tidak valid.'); PM.addUrl('', u).then(function () { toast('Layer online ditambahkan.'); F.drone(); }).catch(function (e) { toast('Gagal: ' + e.message, 5000); }); };
+    });
+  },
+  queue: function () {
+    IDB.all().then(function (q) {
+      $('#fMain').innerHTML = '<div class="card"><div class="row"><h3 class="sp">Antrean (' + q.length + ')</h3><button class="btn pri" id="qS"' + (q.length ? '' : ' disabled') + '>⇅ Sinkron sekarang</button></div>' +
+        (q.length ? q.map(function (i) { return '<div class="q"><span class="sp">' + esc(i.label) + '<br><span class="tiny muted">' + new Date(i.at).toLocaleString('id-ID') + (i.photo ? ' · 📷' : '') + '</span></span>' + (i.error ? '<span class="pill bad" title="' + esc(i.error) + '">gagal</span>' : '<span class="pill">menunggu</span>') + '</div>' + (i.error ? '<div class="tiny err">' + esc(i.error) + '</div>' : ''); }).join('') : '<p class="muted">Semua data sudah tersinkron.</p>') +
+        '<p class="tiny muted">Data gagal (mis. kode duplikat) tetap disimpan agar bisa diperbaiki melalui aplikasi lengkap. Sinkron otomatis saat online.</p>' +
+        '<label>Impor antrean dari aplikasi lama (berkas spms-antrean-*.json)</label><input type="file" id="qI" accept=".json,application/json"><button class="btn block" onclick="F.back()">‹ Kembali</button></div>';
+      $('#qI').onchange = function () { var f = this.files[0]; if (!f) return; f.text().then(function (t) {
+        var j = JSON.parse(t), items = (j && j.spms === 'antrean-lapangan' && Array.isArray(j.items)) ? j.items : null;
+        if (!items) throw new Error('Bukan berkas antrean SPMS.');
+        var ok = items.filter(function (i) { return i && typeof i.id === 'string' && (i.type === 'survey' || i.type === 'save') && i.payload && typeof i.payload === 'object'; });
+        var dr = j.svdraft && Array.isArray(j.svdraft.pts) && j.svdraft.pts.length && !(LS.get('svdraft', { pts: [] }).pts || []).length ? j.svdraft : null;
+        if (dr) LS.set('svdraft', { pid: String(dr.pid || ''), pts: dr.pts, rec: false, paused: false, start: dr.start || '' });
+        return ok.reduce(function (p, i) { delete i.error; return p.then(function () { return IDB.put(i); }); }, Promise.resolve()).then(function () { toast(ok.length + ' data antrean diimpor' + (dr ? ' + draf survei (lanjutkan di Ukur Batas Lahan).' : '.'), 5000); F.queue(); Sync.run(); });
+      }).catch(function (e) { toast('Impor gagal: ' + e.message, 5000); }); };
+      if ($('#qS')) $('#qS').onclick = function () { this.disabled = true; Sync.run(true).then(function () { F.queue(); }); };
+    });
+  }
+};
+
+/* ---------- Sinkronisasi (idempotent: op_id stabil per item) ---------- */
+var Sync = {
+  busy: false,
+  run: function (manual) {
+    if (Sync.busy || !navigator.onLine || !LS.get('token', '') || !configured) { if (manual) toast(!navigator.onLine ? 'Masih offline.' : 'Belum login / URL belum diatur.'); return Promise.resolve(); }
+    Sync.busy = true;
+    return IDB.all().then(function (q) {
+      return q.reduce(function (p, it) { return p.then(function () {
+        var op = it.type === 'survey' ? { op_id: it.id + '-s', action: 'saveSurvey', payload: it.payload } : { op_id: it.id + '-e', action: 'save', payload: it.payload };
+        return post('syncPush', { ops: [op] }).then(function (r) {
+          var x = r[0]; if (!x.ok) throw new Error(x.error);
+          var id = it.entity_id || (x.result && x.result.id);
+          if (it.photo && id) { it.entity_id = id; return IDB.put(it).then(function () {
+            return post('syncPush', { ops: [{ op_id: it.id + '-m', action: 'uploadMedia', payload: { entity: it.ent, entity_id: id, category: it.photoCat, data: it.photo.data, thumb: it.photo.thumb, mime: 'image/jpeg', name: it.photo.name, captured_at: it.photo.at, lat: it.pos ? it.pos.lat : '', lng: it.pos ? it.pos.lng : '' } }] }); }).then(function (r2) { if (!r2[0].ok) throw new Error('Foto: ' + r2[0].error); }); }
+        }).then(function () { return IDB.del(it.id); }).catch(function (e) { it.error = e.message; if (/AUTH|Sesi/.test(e.message)) throw e; return IDB.put(it); });
+      }); }, Promise.resolve());
+    }).then(function () { if (manual) toast('Sinkronisasi selesai.'); }).catch(function (e) { toast('Sinkron berhenti: ' + e.message + (/AUTH|Sesi/.test(e.message) ? ' — login ulang.' : '')); })
+      .then(function () { Sync.busy = false; F.net(); });
+  }
+};
+
+/* ---------- Geo util (UTM, sama dengan server) ---------- */
+var Geo = {
+  utm: function (lng, lat, zone) { var a = 6378137, f = 1 / 298.257223563, k0 = .9996, e2 = f * (2 - f), ep2 = e2 / (1 - e2), phi = lat * Math.PI / 180, lam = lng * Math.PI / 180, lam0 = ((zone - 1) * 6 - 177) * Math.PI / 180;
+    var N = a / Math.sqrt(1 - e2 * Math.sin(phi) * Math.sin(phi)), T = Math.tan(phi) * Math.tan(phi), C = ep2 * Math.cos(phi) * Math.cos(phi), A = Math.cos(phi) * (lam - lam0);
+    var M = a * ((1 - e2 / 4 - 3 * e2 * e2 / 64 - 5 * e2 * e2 * e2 / 256) * phi - (3 * e2 / 8 + 3 * e2 * e2 / 32 + 45 * e2 * e2 * e2 / 1024) * Math.sin(2 * phi) + (15 * e2 * e2 / 256 + 45 * e2 * e2 * e2 / 1024) * Math.sin(4 * phi) - (35 * e2 * e2 * e2 / 3072) * Math.sin(6 * phi));
+    return [k0 * N * (A + (1 - T + C) * Math.pow(A, 3) / 6 + (5 - 18 * T + T * T + 72 * C - 58 * ep2) * Math.pow(A, 5) / 120) + 5e5, k0 * (M + N * Math.tan(phi) * (A * A / 2 + (5 - T + 9 * C + 4 * C * C) * Math.pow(A, 4) / 24 + (61 - 58 * T + T * T + 600 * C - 330 * ep2) * Math.pow(A, 6) / 720))]; },
+  measure: function (r) { if (r.length < 3) return { area: 0, perimeter: 0 }; r = r.slice(); if (r[0][0] !== r[r.length - 1][0] || r[0][1] !== r[r.length - 1][1]) r.push(r[0]); var z = Math.floor((r[0][0] + 180) / 6) + 1, p = r.map(function (c) { return Geo.utm(c[0], c[1], z); }), s = 0, per = 0;
+    for (var i = 0; i < p.length - 1; i++) { s += p[i][0] * p[i + 1][1] - p[i + 1][0] * p[i][1]; per += Math.hypot(p[i + 1][0] - p[i][0], p[i + 1][1] - p[i][1]); } return { area: Math.abs(s) / 2, perimeter: per }; },
+  dist: function (a, b) { var R = 6371008.8, dl = (b[1] - a[1]) * Math.PI / 180, dg = (b[0] - a[0]) * Math.PI / 180, h = Math.sin(dl / 2) * Math.sin(dl / 2) + Math.cos(a[1] * Math.PI / 180) * Math.cos(b[1] * Math.PI / 180) * Math.sin(dg / 2) * Math.sin(dg / 2); return 2 * R * Math.asin(Math.sqrt(h)); },
+  selfIntersect: function (r) { var o = function (a, b, c) { var v = (b[1] - a[1]) * (c[0] - b[0]) - (b[0] - a[0]) * (c[1] - b[1]); return Math.abs(v) < 1e-14 ? 0 : v > 0 ? 1 : 2; }; r = r.slice(); r.push(r[0]);
+    for (var i = 0; i < r.length - 1; i++) for (var j = i + 2; j < r.length - 1; j++) { if (i === 0 && j === r.length - 2) continue; var a = o(r[i], r[i + 1], r[j]), b = o(r[i], r[i + 1], r[j + 1]), c = o(r[j], r[j + 1], r[i]), d = o(r[j], r[j + 1], r[i + 1]); if (a && b && c && d && a !== b && c !== d) return true; } return false; }
+};
+function compress(file, max, q) { return new Promise(function (res, rej) { var fr = new FileReader(); fr.onload = function () { var im = new Image(); im.onload = function () { var s = Math.min(1, max / Math.max(im.width, im.height)), c = document.createElement('canvas'); c.width = Math.round(im.width * s); c.height = Math.round(im.height * s); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); res(c.toDataURL('image/jpeg', q)); }; im.onerror = rej; im.src = fr.result; }; fr.readAsDataURL(file); }); }
+
+/* ---------- Foto udara drone PMTiles (offline: OPFS, online: URL) ---------- */
+var PM = {
+  LIB: 'https://unpkg.com/pmtiles@4.5.0/dist/pmtiles.js', inst: {}, files: {}, mem: {},
+  ready: function () { return window.pmtiles ? Promise.resolve() : new Promise(function (res, rej) { var s = document.createElement('script'); s.src = PM.LIB; s.onload = res; s.onerror = function () { rej(new Error('Pustaka PMTiles belum tersimpan — buka aplikasi sekali saat online.')); }; document.head.appendChild(s); }); },
+  list: function () { return LS.get('pmt', []); }, save: function (a) { LS.set('pmt', a); },
+  size: function (b) { return b > 1e9 ? nf(b / 1e9, 2) + ' GB' : b > 1e6 ? nf(b / 1e6, 1) + ' MB' : nf(b / 1e3, 0) + ' KB'; },
+  dir: function () { return navigator.storage.getDirectory().then(function (r) { return r.getDirectoryHandle('pmtiles', { create: true }); }); },
+  check: function (pm) { return pm.getHeader().then(function (h) { if (h.tileType === 1 || h.tileType === 6) throw new Error('Arsip berisi tile vektor; gunakan PMTiles raster (ortho drone).'); return h; }); },
+  meta: function (h) { return { bounds: [h.minLon, h.minLat, h.maxLon, h.maxLat], minZoom: h.minZoom, maxZoom: h.maxZoom }; },
+  open: function (l) {
+    if (PM.inst[l.id]) return Promise.resolve(PM.inst[l.id]);
+    return PM.ready().then(function () {
+      if (l.kind === 'url') return new pmtiles.PMTiles(l.url);
+      if (l.kind === 'mem') return new pmtiles.PMTiles({ getKey: function () { return l.id; }, getBytes: function (o, n) { return Promise.resolve({ data: PM.mem[l.id].slice(o, o + n) }); } });
+      if (l.kind === 'session') { if (!PM.files[l.id]) throw new Error('pilih ulang file'); return new pmtiles.PMTiles(new pmtiles.FileSource(PM.files[l.id])); }
+      return PM.dir().then(function (d) { return d.getFileHandle(l.id + '.pmtiles'); }).then(function (h) { return h.getFile(); }).then(function (f) { return new pmtiles.PMTiles(new pmtiles.FileSource(f)); });
+    }).then(function (pm) { return PM.check(pm).then(function (h) { return (PM.inst[l.id] = { pm: pm, h: h }); }); });
+  },
+  addFile: function (file, prog) {
+    var id = 'f' + uid(), l = { id: id, name: file.name.replace(/\.pmtiles$/i, ''), size: file.size, on: 1 };
+    return PM.ready().then(function () { return PM.check(new pmtiles.PMTiles(new pmtiles.FileSource(file))); }).then(function (h) {
+      Object.assign(l, PM.meta(h));
+      if (!(navigator.storage && navigator.storage.getDirectory)) { l.kind = 'session'; PM.files[id] = file; return l; }
+      return navigator.storage.estimate().then(function (est) {
+        if (est.quota && est.quota - est.usage < file.size * 1.02) throw new Error('Ruang penyimpanan tidak cukup (perlu ' + PM.size(file.size) + ', tersedia ' + PM.size(est.quota - est.usage) + ').');
+        if (navigator.storage.persist) navigator.storage.persist();
+        return PM.dir().then(function (d) { return d.getFileHandle(id + '.pmtiles', { create: true }); }).then(function (fh) { return fh.createWritable(); }).then(function (w) {
+          var rd = file.stream().getReader(), done = 0;
+          var pump = function () { return rd.read().then(function (r) { if (r.done) return w.close(); done += r.value.length; prog && prog(done / file.size); return w.write(r.value).then(pump); }); };
+          return pump();
+        }).then(function () { l.kind = 'opfs'; return l; });
+      }).catch(function (e) { if (/createWritable|not a function|NotAllowed|Security/i.test(e.message)) { l.kind = 'session'; PM.files[id] = file; return l; } throw e; });
+    }).then(function (x) { var a = PM.list(); a.push(x); PM.save(a); return x; });
+  },
+  addUrl: function (name, url) {
+    return PM.ready().then(function () { return PM.check(new pmtiles.PMTiles(url)); }).then(function (h) { var l = Object.assign({ id: 'u' + uid(), name: name || url.split('/').pop(), kind: 'url', url: url, on: 1 }, PM.meta(h)); var a = PM.list(); a.push(l); PM.save(a); return l; });
+  },
+  remove: function (id) { var l = PM.list().filter(function (x) { return x.id === id; })[0]; PM.save(PM.list().filter(function (x) { return x.id !== id; })); delete PM.inst[id];
+    return l && l.kind === 'opfs' ? PM.dir().then(function (d) { return d.removeEntry(id + '.pmtiles'); }).catch(function () {}) : Promise.resolve(); },
+  /** pasang ke peta lapangan sebagai overlay pada kontrol layer */
+  attach: function (map, ctl) {
+    PM.list().forEach(function (l) { PM.open(l).then(function (o) {
+      if (!F.map || F.map !== map) return;
+      var lyr = pmtiles.leafletRasterLayer(o.pm, { maxNativeZoom: o.h.maxZoom, minNativeZoom: o.h.minZoom, maxZoom: 22, zIndex: 5, bounds: L.latLngBounds([o.h.minLat, o.h.minLon], [o.h.maxLat, o.h.maxLon]), attribution: 'Foto udara: ' + esc(l.name) });
+      ctl.addOverlay(lyr, '🛰 ' + esc(l.name)); if (l.on) lyr.addTo(map);
+    }).catch(function () {}); });
+  }
+};
+
+/* ---------- Mulai ---------- */
+window.addEventListener('online', function () { F.net(); Sync.run(); });
+window.addEventListener('offline', function () { F.net(); });
+var leafletReady = new Promise(function (res) { var s = document.createElement('script'); s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'; s.onload = res; s.onerror = function () { res(); }; document.head.appendChild(s); });
+leafletReady.then(function () {
+  F.open();
+  Sync.run();
+});
+setInterval(function () { Sync.run(); }, 60000);
+if (!window.SW_BY_PAGE && 'serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').then(function (reg) {
+  reg.addEventListener('updatefound', function () { var nw = reg.installing; nw && nw.addEventListener('statechange', function () { if (nw.state === 'installed' && navigator.serviceWorker.controller) toast('Versi baru tersedia — muat ulang aplikasi.', 6000); }); });
+}).catch(function () {});
+</script>
+</body>
+</html>

@@ -15,7 +15,7 @@
  */
 'use strict';
 var SpmsSupa = (function () {
-  var STAGE = '2c', BUILD = '2c-2';
+  var STAGE = '3', BUILD = '3-2';
   var TIMEOUT = 45000, PAGE = 1000, TTL = 45000;
   var WRITE = { save: 1, remove: 1, bulkSave: 1, saveSurvey: 1, parcelTransition: 1, replaceTree: 1, uploadMedia: 1,
     journalPost: 1, journalReverse: 1, quickTxn: 1, aiVision: 1 };
@@ -239,9 +239,19 @@ var SpmsSupa = (function () {
     headers: function () { return []; }
   };
   function undoAll() { while (UNDO.length) { try { UNDO.pop()(); } catch (e) { /* abaikan */ } } }
+  /** Batalkan perubahan sementara milik aksi yang SUDAH selesai — lewat antrean mesin (tidak mengganggu aksi lain yang sedang jalan). */
+  function undoList(list) { var p = ENGINE_Q.then(function () { var keep = UNDO; UNDO = list || []; undoAll(); UNDO = keep; }); ENGINE_Q = p.catch(function () {}); return p; }
   /** Jalankan handler server SPMS asli; bila butuh sheet yang belum dimuat → muat lalu ulangi.
    *  opt.write: rekam perubahan (dikembalikan di out.__ops), opt.fn: fungsi kustom (E, ctx, payload). */
-  async function runEngine(action, ctx, payload, opt) {
+  // Mesin memakai keadaan bersama (MemDb, MISS, REC, UNDO, AIPEND) → jalankan SATU per satu agar dua aksi yang bersamaan
+  // (mis. peta memuat lapisan sambil sinkron antrean) tidak saling menimpa.
+  var ENGINE_Q = Promise.resolve();
+  function runEngine(action, ctx, payload, opt) {
+    var p = ENGINE_Q.then(function () { return runEngineNow(action, ctx, payload, opt); });
+    ENGINE_Q = p.catch(function () { /* antrean tetap jalan */ });
+    return p;
+  }
+  async function runEngineNow(action, ctx, payload, opt) {
     opt = opt || {};
     var E = eng(), fn = opt.fn || E.H[action];
     if (!fn) throw appErr('UNKNOWN', 'Aksi tidak dikenal: ' + action);
@@ -319,12 +329,12 @@ var SpmsSupa = (function () {
     try {
       res = await rpc('spms_apply', { p_org: w.org.id, p_action: action, p_ent: (payload && payload.ent) || null, p_ops: r.ops, p_op_id: opId || null, p_result: smallResult(r.out) });
     } catch (e) {
-      UNDO = r.undo; undoAll();
+      await undoList(r.undo);
       Object.keys(touched).forEach(function (n) { delete LOADED[n]; });   // muat ulang dari server pada aksi berikutnya
       throw e;
     }
     if (res && res.dup) {   // sudah pernah tersimpan (sinkron diulang) → pakai data server
-      UNDO = r.undo; undoAll();
+      await undoList(r.undo);
       Object.keys(touched).forEach(function (n) { if (LOADED[n]) LOADED[n].at = 0; });
       var d = res.result; if (d && typeof d === 'object') d.dup = true;
       return d && typeof d === 'object' && d.id ? { row: { id: d.id }, dup: true } : d;
@@ -386,7 +396,7 @@ var SpmsSupa = (function () {
   var SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="480" height="320" viewBox="0 0 480 320"><rect width="480" height="320" fill="#f1f5f9"/>' +
     '<rect x="190" y="90" width="100" height="76" rx="10" fill="none" stroke="#94a3b8" stroke-width="6"/><circle cx="240" cy="128" r="18" fill="none" stroke="#94a3b8" stroke-width="6"/>' +
     '<text x="240" y="215" font-family="sans-serif" font-size="20" text-anchor="middle" fill="#475569">Berkas masih di Google Drive</text>' +
-    '<text x="240" y="245" font-family="sans-serif" font-size="15" text-anchor="middle" fill="#64748b">dipindah ke Supabase pada tahap berikutnya</text></svg>';
+    '<text x="240" y="245" font-family="sans-serif" font-size="14" text-anchor="middle" fill="#64748b">Super Admin: pindahkan lewat spms/pindah-foto.html</text></svg>';
   function blobToB64(blob) {
     return new Promise(function (res, rej) { var fr = new FileReader(); fr.onload = function () { res(String(fr.result).split(',')[1] || ''); }; fr.onerror = function () { rej(fr.error); }; fr.readAsDataURL(blob); });
   }
@@ -440,7 +450,7 @@ var SpmsSupa = (function () {
     var light = Object.assign({}, p); delete light.data;    // data besar tidak ikut diproses mesin
     // uji dulu (izin, induk, duplikat) tanpa mengunggah
     var dry = await runEngine('uploadMedia', ctxFrom(w, 'sb'), light, { write: true, fn: mediaFn('storage:pending', checksum, bytes.length) });
-    UNDO = dry.undo; undoAll();
+    await undoList(dry.undo);
     if (dry.out && dry.out.duplicate) return dry.out;
     var path = w.org.id + '/media/' + String(p.entity).replace(/[^\w-]/g, '') + '/' + String(p.entity_id).replace(/[^\w.-]/g, '') + '/' + checksum.slice(0, 32) + '.' + EXT[p.mime];
     var up = await withTimeout(client().storage.from('spms').upload(path, new Blob([bytes], { type: p.mime }), { upsert: true, contentType: p.mime, cacheControl: '31536000' }));
@@ -456,11 +466,19 @@ var SpmsSupa = (function () {
   };
   /** Sinkron Mode Lapangan (antrean offline). Anti-dobel lewat op_id di spms_sync_ops. */
   H.syncPush = async function (p) {
-    var ops = (p.ops || []).slice(0, 200), results = [];
+    var ops = (p.ops || []).slice(0, 200), results = [], done = {};
+    // kiriman yang dulu SUDAH masuk tetapi jawabannya hilang (sinyal putus) → jangan dijalankan ulang (aturan kode kembar akan menolak)
+    var ids = ops.map(function (o) { return String(o.op_id || ''); }).filter(function (x) { return x.length >= 4; });
+    if (ids.length) {
+      var seen = await withTimeout(client().from('spms_sync_ops').select('op_id,result').in('op_id', ids));
+      if (seen.error) { if (isNet(seen.error)) throw netErr('Sinkron tertunda (jaringan).'); }
+      else (seen.data || []).forEach(function (x) { done[x.op_id] = x.result || true; });
+    }
     for (var i = 0; i < ops.length; i++) {
       var op = ops[i];
       if (!op.op_id) { results.push({ op_id: '', ok: false, error: 'op_id kosong' }); continue; }
       if (!SYNC_OK[op.action]) { results.push({ op_id: op.op_id, ok: false, error: 'Aksi tidak diizinkan' }); continue; }
+      if (Object.prototype.hasOwnProperty.call(done, op.op_id)) { results.push({ op_id: op.op_id, ok: true, dup: true, result: done[op.op_id] }); continue; }
       try {
         var r = op.action === 'uploadMedia' ? await H.uploadMedia(op.payload || {}, op.op_id) : await runWrite(op.action, op.payload || {}, op.op_id);
         var res = r && r.dup ? r : smallResult(r);

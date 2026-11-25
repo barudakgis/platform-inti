@@ -1,6 +1,6 @@
 // Service Worker — membuat aplikasi tetap terbuka tanpa internet.
 // NAIKKAN VERSION setiap rilis agar cache lama dibersihkan.
-const VERSION = 'v1.0.3';
+const VERSION = 'v1.0.4';
 const SHELL = `shell-${VERSION}`;
 const TILES = 'tiles-v1';
 const MAX_TILES = 1500; // ubin peta yang pernah dilihat (jangan unduh massal: dilarang kebijakan OSM)
@@ -15,7 +15,8 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     for (const key of await caches.keys()) {
-      if (key !== SHELL && key !== TILES) await caches.delete(key);
+      // hanya cache milik Beranda (shell-…) — cache SPMS (spms-…) & UMG (umg-…) di domain yang sama jangan disentuh
+      if (key.startsWith('shell-') && key !== SHELL) await caches.delete(key);
     }
     await self.clients.claim();
   })());
