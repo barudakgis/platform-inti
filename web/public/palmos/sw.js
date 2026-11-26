@@ -2,7 +2,7 @@
  * - Berkas aplikasi (index, mesin, penghubung, pustaka) disimpan di perangkat.
  * - Data (Supabase) TIDAK disimpan di sini: aplikasi punya penyimpanan offline & antrean sendiri.
  * - Pustaka peta (unpkg) disimpan saat pertama dipakai. */
-const VERSION = 'palmos-3-1';
+const VERSION = 'palmos-4-3';
 const CORE = ['./', 'index.html', 'engine.html', 'engine.js', 'engine-shim.js', 'supa-api.js', 'supabase.js', 'config.js', 'icon-512.png', 'icon-192.png', 'manifest.webmanifest', 'verify.html'];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => Promise.all(CORE.map((u) => c.add(new Request(u, { cache: 'reload' })).catch(() => null)))).then(() => self.skipWaiting()));

@@ -64,13 +64,13 @@ input[readonly]{background:var(--soft);color:var(--muted)}textarea{min-height:80
 .nav-i.active,.nav-gh.active{background:color-mix(in srgb,var(--pri) 12%,transparent);color:var(--pri)}
 .side-foot{padding:10px 14px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:8px}
 #main{flex:1;margin-left:var(--side);min-width:0;display:flex;flex-direction:column}
-#top{position:sticky;top:0;z-index:20;height:60px;display:flex;align-items:center;gap:6px;padding:0 14px;background:color-mix(in srgb,var(--card) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+#top{position:sticky;top:0;z-index:20;height:calc(60px + env(safe-area-inset-top));padding-top:env(safe-area-inset-top)!important;display:flex;align-items:center;gap:6px;padding:0 14px;background:color-mix(in srgb,var(--card) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
 #top>[data-act=toggleSide]{display:none}
 .crumbs{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}.crumbs span{color:var(--muted);font-weight:400}
 .gsearch{position:relative;margin-left:auto;width:min(340px,34vw)}.gsearch input{margin:0;padding:8px 12px;background:var(--soft);border-color:transparent}
 .dropdown{position:absolute;top:calc(100% + 6px);right:0;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);min-width:240px;max-height:60vh;overflow:auto;z-index:40;padding:6px}
 .dropdown a{display:block;padding:9px 10px;border-radius:8px;color:var(--text);text-decoration:none}.dropdown a:hover{background:var(--soft)}.dropdown a.danger{color:var(--danger)}
-.menu{right:14px;top:56px;position:fixed}
+.menu{right:14px;top:calc(56px + env(safe-area-inset-top));position:fixed}
 .avatar-btn{display:flex;align-items:center;gap:8px;border:0;background:transparent;color:var(--text);cursor:pointer;padding:4px 6px;border-radius:12px;font:inherit;font-weight:600}
 .avatar-btn img,#avatar{width:34px;height:34px;border-radius:50%;object-fit:cover;background:var(--soft);border:2px solid var(--line)}
 .dot{width:10px;height:10px;border-radius:50%;background:var(--ok);display:inline-block}.dot.off{background:var(--danger)}.dot.sync{background:var(--warn);animation:pulse 1s infinite}@keyframes pulse{50%{opacity:.35}}
@@ -78,6 +78,7 @@ input[readonly]{background:var(--soft);color:var(--muted)}textarea{min-height:80
 .banner{background:var(--warn);color:#fff;padding:8px 16px;font-size:13px;text-align:center}
 #view{padding:20px;max-width:1500px;width:100%;outline:none;animation:fade .18s ease}@keyframes mup{from{transform:translateY(18px)}to{transform:none}}@keyframes fade{from{opacity:.4;transform:translateY(4px)}to{opacity:1;transform:none}}
 #scrim{display:none}
+#bnav{display:none}
 /* CARDS & KPI */
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;box-shadow:var(--shadow)}
 .card-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}.card-h h3{margin:0}
@@ -96,6 +97,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:9px 12px;
 th{position:sticky;top:0;background:var(--soft);font-weight:600;color:var(--muted);font-size:12px;cursor:pointer;user-select:none;z-index:1}
 tbody tr{cursor:pointer}tbody tr:hover{background:color-mix(in srgb,var(--pri) 5%,transparent)}td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 tfoot td{font-weight:700;background:var(--soft)}
+.card>table td{white-space:normal;overflow-wrap:anywhere}
 .pager{display:flex;justify-content:space-between;align-items:center;padding:10px 4px;color:var(--muted);font-size:12.5px;gap:8px;flex-wrap:wrap}
 .empty{text-align:center;padding:48px 16px;color:var(--muted)}.empty .ico{font-size:40px;opacity:.6}
 .skel{background:linear-gradient(90deg,var(--soft),var(--line),var(--soft));background-size:200% 100%;animation:sk 1.1s infinite;border-radius:8px;height:14px;margin:8px 0}@keyframes sk{to{background-position:-200% 0}}
@@ -120,7 +122,7 @@ tfoot td{font-weight:700;background:var(--soft)}
 /* MAP */
 #map{position:relative;z-index:0;isolation:isolate;height:calc(100vh - 170px);min-height:420px;border-radius:var(--r);border:1px solid var(--line)}
 .map-wrap{isolation:isolate;position:relative;z-index:0;display:grid;grid-template-columns:1fr 290px;gap:12px}.map-panel{max-height:calc(100vh - 170px);overflow:auto}
-.legend-row{display:flex;align-items:center;gap:8px;margin:5px 0}.legend-row input[type=color]{width:34px;height:28px;padding:2px;margin:0}.legend-row input[type=text]{margin:0;padding:6px 8px}
+.legend-row{display:flex;align-items:center;gap:8px;margin:5px 0}.legend-row input[type=checkbox]{width:auto;flex:none;margin:0}.legend-row input[type=color]{width:34px;height:28px;padding:2px;margin:0}.legend-row input[type=text]{margin:0;padding:6px 8px}
 .sw{width:16px;height:12px;border:1px solid rgba(0,0,0,.35);display:inline-block;flex:none}
 .leaflet-container{font:inherit;background:var(--soft)}
 /* PRINT LAYOUT (gaya ArcGIS) */
@@ -152,13 +154,28 @@ body.demo #top:after{content:"DEMO";position:absolute;left:50%;top:6px;transform
   .modal{padding:0;align-items:flex-end}.modal-box{max-height:94vh;border-radius:18px 18px 0 0}
   .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.kpi .v{font-size:18px}#map{height:62vh}
   .crumbs{display:none}
+  /* MENU BAWAH */
+  #bnav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:24;height:calc(62px + env(safe-area-inset-bottom));padding:0 4px env(safe-area-inset-bottom);background:var(--card);border-top:1px solid var(--line);box-shadow:0 -4px 16px rgba(0,0,0,.06)}
+  .bn-i{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:0;background:none;color:var(--muted);font:inherit;font-size:10.5px;font-weight:600;cursor:pointer;padding:6px 2px;-webkit-tap-highlight-color:transparent}
+  .bn-i .bi{font-size:19px;line-height:1;width:48px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:14px;transition:background .15s}
+  .bn-i .bl{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bn-i.active{color:var(--pri)}.bn-i.active .bi{background:color-mix(in srgb,var(--pri) 15%,transparent)}
+  body.kb #bnav{display:none}
+  #top>[data-act=toggleSide]{display:none}
+  #view{padding-bottom:calc(80px + env(safe-area-inset-bottom))}body.kb #view{padding-bottom:14px}
+  #toasts{right:12px;left:12px;max-width:none;bottom:calc(74px + env(safe-area-inset-bottom))}body.kb #toasts{bottom:12px}
+  #palmInstall{bottom:calc(76px + env(safe-area-inset-bottom))!important}
+  #side{padding-bottom:env(safe-area-inset-bottom)}
+  .modal-foot{padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+  body.demo #top:after{top:auto;bottom:-8px;font-size:9px;padding:1px 8px}
 }
+@media (max-width:380px){.bn-i .bl{font-size:9.5px}.bn-i .bi{width:40px}}
 @media (max-width:520px){.toolbar input,.toolbar select{flex:1 1 45%;min-width:0}.g4{grid-template-columns:1fr}}
 @media print{
   @page{margin:6mm}
   body.printing>*:not(#printArea){display:none!important}body.printing #printArea{display:block}
   body.printing{background:#fff}
-  body.print-report #view .toolbar,body.print-report #top,body.print-report #side{display:none!important}
+  body.print-report #view .toolbar,body.print-report #top,body.print-report #side,#bnav,#palmInstall{display:none!important}
   body.print-report #main{margin:0}
   .pl{page-break-inside:avoid}
 }
@@ -191,7 +208,7 @@ body.demo #top:after{content:"DEMO";position:absolute;left:50%;top:6px;transform
       <div id="loginErr" class="err"></div>
       <div class="login-foot">
         <a href="#" data-act="legal" data-k="terms">Syarat &amp; Ketentuan</a> · <a href="#" data-act="legal" data-k="privacy">Pemberitahuan Privasi</a>
-        <div class="muted small" id="loginVer"></div><div class="muted small" id="loginSupa">Edisi Supabase · Platform Inti · Tahap 3</div>
+        <div class="muted small" id="loginVer"></div><div class="muted small" id="loginSupa">Edisi Supabase · Platform Inti · Tahap 4</div>
       </div>
     </form>
   </section>
@@ -226,6 +243,7 @@ body.demo #top:after{content:"DEMO";position:absolute;left:50%;top:6px;transform
       <div id="netBanner" class="banner hidden">Offline — data disimpan di perangkat dan akan disinkronkan otomatis.</div>
       <section id="view" tabindex="-1"></section>
     </main>
+    <nav id="bnav" aria-label="Menu utama"></nav>
   </div>
 
   <!-- MODAL, LIGHTBOX, TOAST -->
@@ -235,9 +253,9 @@ body.demo #top:after{content:"DEMO";position:absolute;left:50%;top:6px;transform
   <div id="printArea"></div>
 
   <!-- Penjaga pemuatan: tampilkan sebab bila aplikasi gagal start, tidak pernah loading tanpa kejelasan -->
-  <script src="config.js?v=1.3.0-3-1"></script>
-  <script src="supabase.js?v=1.3.0-3-1"></script>
-  <script src="supa-api.js?v=1.3.0-3-1"></script>
+  <script src="config.js?v=1.3.3-4-3"></script>
+  <script src="supabase.js?v=1.3.3-4-3"></script>
+  <script src="supa-api.js?v=1.3.3-4-3"></script>
     <script>
   (function () {
     var errs = [], shown = false;
@@ -260,6 +278,8 @@ body.demo #top:after{content:"DEMO";position:absolute;left:50%;top:6px;transform
   <script>
 /* PALM OS ENTERPRISE \u2014 App.html (inti klien): RPC, cache SWR, IndexedDB, antrean offline, routing + tombol Back, tema, zoom, login */
 'use strict';
+/* Edisi Supabase (Platform Inti) dikenali dari config.js; edisi Google Sheets tidak memilikinya */
+const SUPA = !!window.PALMOS_SUPABASE;
 const S = { token: null, boot: null, schema: {}, perms: {}, settings: {}, mem: new Map(), refs: {}, cur: null, online: navigator.onLine, syncing: false, device: '', lastBack: 0, modalOpen: false, bustAt: {}, refsDirty: {}, refsAt: {}, refsFly: {} };
 const $ = (s, el = document) => el.querySelector(s), $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -446,6 +466,7 @@ function render(st) {
   if (S.onLeave) { try { S.onLeave(); } catch (e) { } S.onLeave = null; }
   st.params = st.params || {}; S.cur = st; document.body.classList.remove('side-open');
   $$('.nav-i,.nav-gh').forEach(a => a.classList.toggle('active', a.dataset.v === st.view && (a.dataset.m || '') === (st.params.mod || '')));
+  bnavActive(st.view);
   const fn = VIEWS[st.view] || VIEWS.dashboard, v = $('#view'); v.innerHTML = skeleton(); v.scrollTop = 0; window.scrollTo(0, 0);
   Promise.resolve().then(() => fn(v, st.params || {})).catch(e => { if (S.cur !== st) return; v.innerHTML = `<div class="errbox"><b>Gagal memuat:</b> ${esc(e.message)}<br><button class="btn sm" onclick="render(S.cur)">Coba lagi</button></div>`; });
 }
@@ -566,6 +587,7 @@ async function logout() {
 /* ---------- Navigasi ---------- */
 const ICO = { wfx: '\u{1F4DD}', dash: '\u{1F4CA}', org: '\u{1F3E2}', plant: '\u{1F334}', gis: '\u{1F5FA}\uFE0F', agro: '\u{1F9EA}', harv: '\u{1F9FA}', logi: '\u{1F69A}', mill: '\u{1F3ED}', hr: '\u{1F465}', inv: '\u{1F4E6}', proc: '\u{1F6D2}', fin: '\u{1F4B0}', asset: '\u{1F6E0}\uFE0F', comp: '\u{1F6E1}\uFE0F', docs: '\u{1F4C1}', comm: '\u{1F91D}', rpt: '\u{1F4D1}', ai: '\u2728', appr: '\u2705', sys: '\u2699\uFE0F' };
 const SPECIAL = { wfx: [['wfx', 'Beranda Workflow'], ['wfxTodo', 'Perlu Persetujuan Saya'], ['wfxMine', 'Pengajuan Saya'], ['wfxCal', 'Kalender Cuti & Libur']], dash: [['dashboard', 'Ringkasan Eksekutif']], gis: [['map', 'Peta Kebun & Cetak']], rpt: [['reports', 'Pusat Laporan']], ai: [['ai', 'Asisten & Forecast']], appr: [['approvals', 'Menunggu Persetujuan'], ['queue', 'Antrean Offline']], sys: [['settings', 'Pengaturan & Tema'], ['users', 'Pengguna & Role'], ['storage', 'Penyimpanan & Arsip'], ['audit', 'Audit Trail'], ['about', 'Tentang, S&K, Privasi']] };
+if (SUPA) SPECIAL.sys = SPECIAL.sys.map(x => x[0] === 'storage' ? ['storage', 'Kapasitas Database'] : x);
 function buildNav() {
   const open = ls.get('navOpen', { dash: 1 }), html = [];
   S.boot.groups.forEach(([g, t]) => {
@@ -576,7 +598,25 @@ function buildNav() {
     html.push(`<div class="nav-g ${open[g] ? 'open' : ''}" data-g="${g}"><div class="nav-gh" data-act="navg"><span class="ico">${ICO[g] || '\u2022'}</span>${esc(t)}<span class="car">\u203A</span></div><div class="nav-items">${items.join('')}</div></div>`);
   });
   $('#nav').innerHTML = html.join('');
+  buildBottomNav();
 }
+/* ---------- Menu bawah (HP & tablet) ---------- */
+const BNAV = [['dashboard', 'dash', '\u{1F3E0}', 'Beranda'], ['map', 'gis', '\u{1F5FA}\uFE0F', 'Peta'], ['wfx', 'wfx', '\u{1F4DD}', 'Workflow'], ['approvals', 'appr', '\u2705', 'Persetujuan'], ['reports', 'rpt', '\u{1F4D1}', 'Laporan'], ['ai', 'ai', '\u2728', 'AI']];
+const BNAV_ALIAS = { wfxTodo: 'wfx', wfxMine: 'wfx', wfxCal: 'wfx', queue: 'approvals' };
+function buildBottomNav() {
+  const el = $('#bnav'); if (!el) return;
+  const items = BNAV.filter(([v, g]) => g === 'appr' || (S.perms[g] && S.perms[g].indexOf('V') >= 0)).slice(0, 4);
+  el.innerHTML = items.map(([v, g, ico, l]) => `<button type="button" class="bn-i" data-act="go" data-v="${v}" aria-label="${esc(l)}"><span class="bi">${ico}</span><span class="bl">${esc(l)}</span></button>`).join('') +
+    '<button type="button" class="bn-i" data-act="toggleSide" data-v="_menu" aria-label="Semua menu"><span class="bi">\u2630</span><span class="bl">Menu</span></button>';
+  if (S.cur) bnavActive(S.cur.view);
+}
+function bnavActive(view) {
+  const v = BNAV_ALIAS[view] || view, hit = $$('#bnav .bn-i').some(b => b.dataset.v === v);
+  $$('#bnav .bn-i').forEach(b => b.classList.toggle('active', b.dataset.v === v || (!hit && b.dataset.v === '_menu')));
+}
+/* Saat keyboard HP terbuka, menu bawah disembunyikan agar tidak menutupi isian */
+document.addEventListener('focusin', e => { const t = e.target; if (window.innerWidth <= 900 && t && (/TEXTAREA|SELECT/.test(t.tagName) || (t.tagName === 'INPUT' && !/checkbox|radio|button|submit|color|range|file/.test(t.type)))) document.body.classList.add('kb'); });
+document.addEventListener('focusout', () => setTimeout(() => { const a = document.activeElement; if (!a || !/INPUT|TEXTAREA|SELECT/.test(a.tagName)) document.body.classList.remove('kb'); }, 120));
 
 /* ---------- Delegasi klik global ---------- */
 document.addEventListener('click', e => {
@@ -677,7 +717,7 @@ VIEWS.dashboard = async (v) => {
     <div class="card"><div class="card-h"><h3>Produksi per Estate</h3></div>${hBars(d.by_estate.map(e => ({ n: e.estate + ' ' + (e.name || ''), t: e.ton })), 't', 'n', 't')}</div>
     <div class="card"><div class="card-h"><h3>Komposisi Status Tanaman (ha)</h3></div>${hBars(d.status_mix.map(x => ({ n: x.s, h: x.ha })), 'h', 'n', 'ha')}</div>
     <div class="card"><div class="card-h"><h3>Peringatan</h3><span class="badge">${d.alerts.length}</span></div>${d.alerts.length ? d.alerts.map(a => `<div class="hbar"><span class="badge">${esc(a.type)}</span> ${esc(a.text)}</div>`).join('') : emptyBox('Tidak ada peringatan stok, legal, atau audit', '\u2705')}</div></div>
-    <p class="muted small" style="margin-top:12px">Sumber: ${esc(d.source)} \u00B7 Dihasilkan ${esc(String(d.generated).replace('T', ' ').slice(0, 19))} UTC ${stale ? '\u00B7 <b>cache</b>, menyegarkan\u2026' : ''}</p>`;
+    <p class="muted small" style="margin-top:12px">Sumber: ${esc(SUPA ? String(d.source).replace(/^Sheet /, 'Tabel ') : d.source)} \u00B7 Dihasilkan ${esc(String(d.generated).replace('T', ' ').slice(0, 19))} UTC ${stale ? '\u00B7 <b>cache</b>, menyegarkan\u2026' : ''}</p>`;
   });
 };
 function estateSelect(id, val) { const est = (S.refs.estates || []); return `<select id="${id}"><option value="">Semua Estate</option>${est.map(e => `<option value="${esc(e.v)}" ${e.v === val ? 'selected' : ''}>${esc(e.l)}</option>`).join('')}</select>`; }
@@ -959,10 +999,11 @@ VIEWS.settings = async (v) => {
    ${admin ? `<div class="card"><h3>Aturan Bisnis</h3><label>Batas persetujuan per role (Rp, -1 = tanpa batas) \u2014 JSON</label><textarea id="bLim" style="font-family:monospace;min-height:140px">${esc(JSON.stringify(st.approval_limits, null, 1))}</textarea>
     <label>Standar hara LSU [min,max] \u2014 JSON (sesuaikan standar agronomi perusahaan)</label><textarea id="bLsu" style="font-family:monospace">${esc(JSON.stringify(st.lsu_std))}</textarea>
     <label>Parameter premi panen \u2014 JSON</label><input id="bPre" style="font-family:monospace" value="${esc(JSON.stringify(st.premi))}">
-    <label class="chk"><input type="checkbox" id="bSod" ${st.strict_sod ? 'checked' : ''}> Separation of Duties ketat</label><label class="chk"><input type="checkbox" id="bAi" ${st.ai_enabled ? 'checked' : ''}> Aktifkan AI eksternal (butuh GEMINI_API_KEY di Script Properties)</label>
+    <label class="chk"><input type="checkbox" id="bSod" ${st.strict_sod ? 'checked' : ''}> Separation of Duties ketat</label><label class="chk"><input type="checkbox" id="bAi" ${st.ai_enabled ? 'checked' : ''}> Aktifkan AI eksternal (${SUPA ? 'kunci GEMINI_API_KEY diatur di Supabase, tabel palm_secrets' : 'butuh GEMINI_API_KEY di Script Properties'})</label>
     <button class="btn primary" id="bSave" style="margin-top:10px">Simpan Aturan</button></div>
-   <div class="card"><h3>Lisensi</h3><div id="licBox"></div><label>Kunci lisensi<textarea id="lKey" placeholder="POS1.xxxxx.yyyyy" style="font-family:monospace"></textarea></label><button class="btn primary" id="lAct">Aktifkan</button><p class="muted small">ID Spreadsheet (untuk binding lisensi): <code id="ssid">\u2014</code></p></div>` : ''}</div>`;
-  const lic = S.boot.license; if ($('#licBox')) { $('#licBox').innerHTML = `<p><b>${esc(lic.title)}</b> (${esc(lic.tier)}) \u00B7 ${esc(lic.exp)}<br>Pelanggan: ${esc(lic.customer || '-')} \u00B7 Maks Estate ${lic.max_estates < 0 ? '\u221E' : lic.max_estates} \u00B7 Maks pengguna ${lic.max_users < 0 ? '\u221E' : lic.max_users}${lic.reason ? '<br><span style="color:var(--danger)">' + esc(lic.reason) + '</span>' : ''}</p>`; $('#ssid').textContent = S.boot.ssid || '-'; }
+   <div class="card"><h3>Lisensi</h3><div id="licBox"></div>${SUPA ? '<p class="muted small">Lisensi edisi Supabase dikelola terpusat di Platform Inti (paket, masa berlaku, jumlah pengguna). Untuk perpanjang atau naik paket, hubungi penyedia.</p>' : `<label>Kunci lisensi<textarea id="lKey" placeholder="POS1.xxxxx.yyyyy" style="font-family:monospace"></textarea></label><button class="btn primary" id="lAct">Aktifkan</button><p class="muted small">ID Spreadsheet (untuk binding lisensi): <code id="ssid">\u2014</code></p>`}</div>` : ''}</div>`;
+  const lic = S.boot.license, lkd = lic.groups && lic.groups !== '*' ? S.boot.groups.filter(([g]) => ['dash', 'sys', 'appr', 'rpt', 'wfx', 'qr'].indexOf(g) < 0 && String(lic.groups).split(',').indexOf(g) < 0).map(x => x[1]) : [];
+  if ($('#licBox')) { $('#licBox').innerHTML = `${lkd.length ? `<p class="small" style="margin-top:0">Modul di luar paket (naik paket untuk membuka): <b>${esc(lkd.join(', '))}</b></p>` : ''}<p><b>${esc(lic.title)}</b> (${esc(lic.tier)}) \u00B7 ${esc(lic.exp)}<br>Pelanggan: ${esc(lic.customer || '-')} \u00B7 Maks Estate ${lic.max_estates < 0 ? '\u221E' : lic.max_estates} \u00B7 Maks pengguna ${lic.max_users < 0 ? '\u221E' : lic.max_users}${lic.reason ? '<br><span style="color:var(--danger)">' + esc(lic.reason) + '</span>' : ''}</p>`; if ($('#ssid')) $('#ssid').textContent = S.boot.ssid || '-'; }
   const prev = () => { t.primary = $('#tP').value; t.accent = $('#tA').value; t.mode = $('#tM').value; t.font = $('#tF').value; t.radius = +$('#tR').value; $('#tRv').textContent = t.radius; const keep = ls.get('themeLocal', {}); ls.del('themeLocal'); applyTheme(t); ls.set('themeLocal', keep); };
   ['tP', 'tA', 'tM', 'tF', 'tR'].forEach(id => $('#' + id).oninput = prev);
   $$('[data-pre]').forEach(b => b.onclick = () => { const [a, c] = PRESETS[b.dataset.pre]; t.preset = b.dataset.pre; $('#tP').value = a; $('#tA').value = c; prev(); });
@@ -1004,6 +1045,14 @@ VIEWS.users = async (v) => {
 VIEWS.storage = async (v) => {
   crumbs('Penyimpanan & Arsip'); v.innerHTML = skeleton();
   try { const u = await rpc('usage'); const c = u.pct > 80 ? 'var(--danger)' : u.pct > 60 ? 'var(--warn)' : 'var(--ok)';
+    if (u.supabase) { crumbs('Kapasitas Database'); const mb = b => fmt(b / 1048576, 1) + ' MB';
+      v.innerHTML = `<div class="page-h"><div><h2>Kapasitas Database</h2><p>Edisi Supabase (PostgreSQL): tidak ada batas 10 juta sel atau 50.000 karakter per sel seperti Google Sheets</p></div></div>
+      <div class="grid g2"><div class="card"><h3>Ukuran Database</h3><div class="hbar"><span class="b" style="height:16px"><i style="width:${Math.min(100, u.pct)}%;background:${c}"></i></span><b>${u.pct}%</b></div><p>${mb(u.total)} dari ${mb(u.limit)} (kuota paket Free Supabase).</p>
+       <p class="small muted">Angka ini ukuran seluruh database proyek Supabase (semua aplikasi Platform Inti). Paket Pro Supabase menyediakan 8 GB per proyek dan dapat ditambah per GB, jadi data bertahun-tahun tetap tersimpan di satu tempat tanpa perlu dirapikan atau diarsipkan ke berkas lain. Foto & lampiran disimpan di Supabase Storage, terpisah dari ukuran ini.</p></div>
+       <div class="card"><h3>Ringkasan Data</h3><div class="kpis" style="margin:0"><div class="kpi"><div class="l">Total baris data</div><div class="v">${fmt(u.rows || 0)}</div></div><div class="kpi info"><div class="l">Tabel berisi data</div><div class="v">${fmt(u.sheets.length)}</div></div></div>
+       <p class="small muted" style="margin-top:10px">Pemeliharaan otomatis: indeks & pembersihan dijalankan PostgreSQL, cadangan harian tersedia pada paket berbayar Supabase. Transaksi lama tetap bisa dicari dan dilaporkan kapan saja.</p></div></div>
+       <div class="card" style="margin-top:14px"><h3>Tabel Terbesar</h3><div class="tbl-wrap"><table><tr><th>Modul \u2192 tabel</th><th class="num">Baris</th></tr>${u.sheets.slice(0, 20).map(s => `<tr><td>${esc(s.name)}</td><td class="num">${fmt(s.rows)}</td></tr>`).join('')}</table></div></div>`;
+      return; }
     v.innerHTML = `<div class="page-h"><div><h2>Penyimpanan & Arsip</h2><p>Google Sheets dibatasi 10.000.000 sel per spreadsheet dan 50.000 karakter per sel</p></div></div>
     <div class="grid g2"><div class="card"><h3>Pemakaian Sel</h3><div class="hbar"><span class="b" style="height:16px"><i style="width:${Math.min(100, u.pct)}%;background:${c}"></i></span><b>${u.pct}%</b></div><p>${fmt(u.total)} dari ${fmt(u.limit)} sel.</p>
      <p class="small muted">Strategi: (1) kolom/baris kosong dirapikan otomatis; (2) teks > 45.000 karakter (geometri, foto, jurnal) dipecah ke sheet _Chunks; (3) foto & berkas disimpan di Google Drive, sel hanya menyimpan tautan; (4) transaksi tahun lama yang sudah POSTED dipindah ke spreadsheet arsip per tahun.</p>
@@ -1044,10 +1093,11 @@ VIEWS.profile = async (v) => {
 /* ---------- TENTANG, S&K, PRIVASI ---------- */
 const LEGAL = {
   terms: `<h3>Syarat & Ketentuan Penggunaan PALM OS Enterprise</h3><p class="small muted">Berlaku sejak 19 November 2026 \u00B7 versi 1.0</p>
-  <ol><li><b>Lisensi.</b> Perangkat lunak dilisensikan, bukan dijual, kepada Pelanggan sesuai tier (Trial/Starter/Professional/Enterprise), jumlah Estate, jumlah pengguna, dan masa berlaku yang tercantum pada kunci lisensi. Dilarang menyalin, menjual kembali, menyewakan, memodifikasi untuk melewati pembatasan lisensi, atau mendistribusikan kode tanpa izin tertulis Penyedia.</li>
+  <ol><li><b>Lisensi.</b> Perangkat lunak dilisensikan, bukan dijual, kepada Pelanggan sesuai tier (Trial/Starter/Professional/Enterprise), jumlah Estate, jumlah pengguna, dan masa berlaku yang tercantum pada ${SUPA ? 'lisensi organisasi di Platform Inti' : 'kunci lisensi'}. Dilarang menyalin, menjual kembali, menyewakan, memodifikasi untuk melewati pembatasan lisensi, atau mendistribusikan kode tanpa izin tertulis Penyedia.</li>
   <li><b>Akun.</b> Pengguna wajib menjaga kerahasiaan password dan kode MFA. Semua aktivitas akun tercatat dalam audit trail dan menjadi tanggung jawab pemegang akun.</li>
-  <li><b>Data Pelanggan.</b> Seluruh data operasional tersimpan di Google Spreadsheet dan Google Drive milik Pelanggan. Pelanggan adalah pemilik dan pengendali data; Penyedia tidak mengakses data tanpa permintaan dukungan tertulis.</li>
-  <li><b>Batasan.</b> Aplikasi berjalan di atas Google Apps Script dan tunduk pada kuota Google (waktu eksekusi, 10 juta sel per spreadsheet, 50.000 karakter per sel). Ketersediaan bergantung pada layanan Google dan jaringan Pelanggan.</li>
+  ${SUPA ? `<li><b>Data Pelanggan.</b> Seluruh data operasional tersimpan di database PostgreSQL dan Storage Supabase (Platform Inti), dipisahkan per organisasi dengan Row Level Security. Pelanggan adalah pemilik dan pengendali data; Penyedia hanya mengakses data atas permintaan dukungan tertulis atau untuk pemeliharaan sistem.</li>
+  <li><b>Batasan.</b> Aplikasi berjalan di atas layanan Supabase dan tunduk pada kuota paket Supabase yang digunakan (ukuran database, penyimpanan berkas, lalu lintas data). Ketersediaan bergantung pada layanan Supabase, GitHub Pages, dan jaringan Pelanggan.</li>` : `<li><b>Data Pelanggan.</b> Seluruh data operasional tersimpan di Google Spreadsheet dan Google Drive milik Pelanggan. Pelanggan adalah pemilik dan pengendali data; Penyedia tidak mengakses data tanpa permintaan dukungan tertulis.</li>
+  <li><b>Batasan.</b> Aplikasi berjalan di atas Google Apps Script dan tunduk pada kuota Google (waktu eksekusi, 10 juta sel per spreadsheet, 50.000 karakter per sel). Ketersediaan bergantung pada layanan Google dan jaringan Pelanggan.</li>`}
   <li><b>Bukan nasihat profesional.</b> KPI, forecast, analitik AI, simulasi premi, status hara LSU, dan modul ISPO adalah alat bantu. Keputusan agronomi, payroll, perpajakan, akuntansi, hukum, dan sertifikasi wajib divalidasi tenaga ahli berwenang. Modul compliance tidak menyatakan perusahaan tersertifikasi.</li>
   <li><b>Integrasi.</b> Adapter timbangan, GPS, ERP, laboratorium, dan AI hanya dinyatakan aktif setelah diuji pada perangkat/akun nyata Pelanggan.</li>
   <li><b>Jaminan & tanggung jawab.</b> Disediakan "sebagaimana adanya". Tanggung jawab Penyedia maksimal sebesar biaya lisensi 12 bulan terakhir. Pelanggan wajib melakukan backup berkala.</li>
@@ -1056,8 +1106,8 @@ const LEGAL = {
   <p><b>Pengendali data</b> adalah perusahaan perkebunan Pelanggan. Penyedia aplikasi bertindak sebagai penyedia perangkat lunak dan, bila memberi layanan dukungan, sebagai prosesor atas instruksi Pelanggan.</p>
   <p><b>Data yang diproses:</b> identitas akun (nama, username, email, foto profil, role, scope), data karyawan (nomor karyawan, nama, jabatan, NIK, telepon, rekening, upah \u2014 ditandai sensitif dan disamarkan bagi role tanpa hak SDM), data kehadiran & hasil kerja, lokasi GPS dan foto bukti pada saat pengguna menekan "Ambil GPS"/"Ambil Foto", serta log aktivitas (waktu, perangkat, aksi).</p>
   <p><b>Tujuan:</b> administrasi dan operasional kebun, perhitungan produktivitas, pengendalian internal, audit, keamanan akun, dan pelaporan manajemen. Data tidak dijual dan tidak dipakai untuk iklan.</p>
-  <p><b>Penyimpanan:</b> Google Sheets/Drive akun Pelanggan; salinan sementara di perangkat (IndexedDB) untuk mode offline, dihapus saat sinkron/keluar. Password disimpan dalam bentuk hash bergaram; token sesi disimpan ter-hash.</p>
-  <p><b>Pihak ketiga:</b> Google LLC (infrastruktur), penyedia peta (OpenStreetMap, Esri) untuk ubin peta, dan \u2014 hanya jika diaktifkan administrator \u2014 penyedia AI (Google Gemini) yang menerima data agregat tanpa data pribadi.</p>
+  <p><b>Penyimpanan:</b> ${SUPA ? 'database & Storage Supabase (Platform Inti), terpisah per organisasi' : 'Google Sheets/Drive akun Pelanggan'}; salinan sementara di perangkat (IndexedDB) untuk mode offline, dihapus saat sinkron/keluar. Password disimpan dalam bentuk hash bergaram; token sesi disimpan ter-hash.</p>
+  <p><b>Pihak ketiga:</b> ${SUPA ? 'Supabase Inc. (database & autentikasi), GitHub (hosting halaman aplikasi)' : 'Google LLC (infrastruktur)'}, penyedia peta (OpenStreetMap, Esri) untuk ubin peta, dan \u2014 hanya jika diaktifkan administrator \u2014 penyedia AI (Google Gemini) yang menerima data agregat tanpa data pribadi.</p>
   <p><b>Retensi:</b> sesuai kebijakan Pelanggan dan ketentuan perundang-undangan (mis. dokumen keuangan); transaksi yang diposting tidak dihapus, melainkan dikoreksi/diarsipkan.</p>
   <p><b>Hak subjek data:</b> akses, perbaikan, penghapusan/pembatasan sesuai hukum, dan penarikan persetujuan \u2014 ajukan ke administrator/DPO perusahaan Anda. Insiden kebocoran data ditangani dan diberitahukan sesuai UU PDP.</p>`
 };
@@ -1065,7 +1115,7 @@ function showLegal(k) { openModal(k === 'terms' ? 'Syarat & Ketentuan' : 'Pember
 VIEWS.about = async (v) => {
   crumbs('Tentang'); const a = S.boot.app, l = S.boot.license;
   v.innerHTML = `<div class="grid g2"><div class="card"><div style="display:flex;gap:14px;align-items:center"><img src="${esc(S.settings.logo || DEF_LOGO)}" class="logo-lg zoomable" style="margin:0;background:var(--soft)"><div><h2>${esc(S.settings.app_title)}</h2><p class="muted">${esc(a.FULL)}</p></div></div>
-   <table><tr><td>Versi aplikasi</td><td><b>${esc(a.VERSION)}</b> (build ${esc(a.BUILD)})</td></tr><tr><td>Platform</td><td>Google Apps Script + Google Sheets + PWA</td></tr><tr><td>Lisensi</td><td>${esc(l.title)} \u00B7 ${esc(l.exp)}</td></tr><tr><td>Pelanggan</td><td>${esc(l.customer || '-')}</td></tr><tr><td>Waktu server</td><td>${esc(S.boot.server_time)}</td></tr></table>
+   <table><tr><td>Versi aplikasi</td><td><b>${esc(a.VERSION)}</b> (build ${esc(a.BUILD)})</td></tr><tr><td>Platform</td><td>${SUPA ? 'Supabase (PostgreSQL) \u00B7 Platform Inti + PWA' : 'Google Apps Script + Google Sheets + PWA'}</td></tr><tr><td>Lisensi</td><td>${esc(l.title)} \u00B7 ${esc(l.exp)}</td></tr><tr><td>Pelanggan</td><td>${esc(l.customer || '-')}</td></tr><tr><td>Waktu server</td><td>${esc(S.boot.server_time)}</td></tr></table>
    <p style="margin-top:12px"><a href="#" data-act="legal" data-k="terms">Syarat & Ketentuan</a> \u00B7 <a href="#" data-act="legal" data-k="privacy">Pemberitahuan Privasi</a></p><p class="small muted">${esc(a.TAGLINE)}</p></div>
    <div class="card"><h3>Komponen Pihak Ketiga</h3><ul class="small"><li>Leaflet 1.9.4 \u2014 BSD-2-Clause \u00A9 Vladimir Agafonkin</li><li>Ubin peta \u00A9 kontributor OpenStreetMap (ODbL) \u00B7 OpenTopoMap (CC-BY-SA)</li><li>Esri World Imagery \u2014 tunduk Ketentuan Esri; atribusi wajib tampil</li><li>shpjs 4.0.4 \u2014 MIT</li><li>pmtiles 3.2.1 & protomaps-leaflet 4.0.1 \u2014 BSD-3-Clause</li><li>geotiff.js 2.1.3 & proj4js 2.12.1 \u2014 MIT</li><li>pdf.js 3.11.174 (Mozilla) \u2014 Apache-2.0</li><li>Semua library GIS dimuat saat dipakai lalu disimpan di perangkat untuk mode offline</li><li>Plus Jakarta Sans (opsional) \u2014 SIL Open Font License</li></ul><p class="small muted">Tidak ada kode sumber berlisensi copyleft (GPL) yang disertakan.</p></div></div>`;
 };
@@ -2231,7 +2281,7 @@ async function wxSettings(body, m) {
    <h4>\u{1F381} Kebijakan cuti pengganti (kompensasi)</h4><div class="grid g4"><label>Tiap ... hari dinas<input id="cpPer" type="number" value="${esc((c.comp || {}).sppd_per_days || 30)}"></label><label>mendapat ... hari cuti<input id="cpEarn" type="number" step="0.5" value="${esc((c.comp || {}).sppd_earn || 2)}"></label><label>Rasio kerja hari libur<input id="cpRatio" type="number" step="0.5" value="${esc((c.comp || {}).holiday_ratio || 1)}"></label><label>Kedaluwarsa (hari, 0 = tidak)<input id="cpExp" type="number" value="${esc((c.comp || {}).expiry_days == null ? 90 : c.comp.expiry_days)}"></label>
     <label>Maks. hak per klaim (0 = bebas)<input id="cpMax" type="number" value="${esc((c.comp || {}).max_days || 0)}"></label><label>Dasar insentif sisa<select id="cpMode"><option value="tetap" ${(c.comp || {}).pay_mode !== 'gaji' ? 'selected' : ''}>Tarif tetap per golongan</option><option value="gaji" ${(c.comp || {}).pay_mode === 'gaji' ? 'selected' : ''}>% upah harian karyawan</option></select></label><label>% upah harian<input id="cpPct" type="number" value="${esc((c.comp || {}).pay_pct || 100)}"></label><label>Maks. hari per pencairan (0 = bebas)<input id="cpMaxPay" type="number" value="${esc((c.comp || {}).max_pay_days || 0)}"></label></div>
    <div class="grid g4">${Object.keys((c.comp || {}).pay_rate || {}).map(g => `<label>Tarif ${esc(g)} (Rp/hari)<input type="number" data-cprate="${esc(g)}" value="${esc(c.comp.pay_rate[g])}"></label>`).join('')}</div>
-   <button class="btn primary" id="wSave" style="margin-top:8px">Simpan pengaturan notifikasi, Keuangan &amp; cuti pengganti</button><p class="muted small">Pengingat otomatis: jalankan menu spreadsheet <b>PALM OS \u203A Aktifkan Pengingat Workflow</b> sekali.</p></div>` : '<p class="muted" style="margin-top:12px">Pengaturan rute, jenis cuti dan WhatsApp hanya untuk Super Administrator.</p>'}`;
+   <button class="btn primary" id="wSave" style="margin-top:8px">Simpan pengaturan notifikasi, Keuangan &amp; cuti pengganti</button><p class="muted small">${SUPA ? 'Pengingat otomatis berjalan di server Supabase (jadwal pg_cron, Blok M pada langkah Tahap 4).' : 'Pengingat otomatis: jalankan menu spreadsheet <b>PALM OS \u203A Aktifkan Pengingat Workflow</b> sekali.'}</p></div>` : '<p class="muted" style="margin-top:12px">Pengaturan rute, jenis cuti dan WhatsApp hanya untuk Super Administrator.</p>'}`;
   const save = async (obj, msg) => { try { const st = await rpc('settingsSave', obj); S.settings = st; WX.meta = null; WX.metaT = 0; toast(msg || 'Tersimpan'); } catch (er) { toast(er.message, 'err'); } };
   $('#hSeed').onclick = async () => { try { const r = await rpc('wfHolidaySeed', { year: $('#hY').value, cb_deduct: $('#hCb').checked }); toast(r.added + ' hari libur ditambahkan, ' + r.skipped + ' sudah ada (' + r.ref + ')'); WX.meta = null; } catch (er) { toast(er.message, 'err'); } };
   $('#hMod').onclick = () => go('mod', { mod: 'holidays' });
@@ -2260,7 +2310,7 @@ window.__posFiles = window.__posFiles || {}; window.__posFiles.WorkflowUI = 'AKH
 .qr-one{display:flex;gap:14px;align-items:center;flex-wrap:wrap}.qr-one .q{width:180px;height:180px;background:#fff;padding:8px;border-radius:10px;border:1px solid var(--line)}.qr-one .q svg{width:100%;height:100%}
 .au-it{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:8px 0;background:var(--card)}.au-it.no{border-color:#f04438;background:rgba(240,68,56,.04)}.au-it.ok{border-color:#12b76a}.au-it .q{font-weight:600}.au-it .crit{background:#d92d20;color:#fff;border-radius:6px;font-size:10px;padding:1px 6px;margin-left:6px}.au-it .w{color:var(--muted);font-size:11px}
 .au-ans{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.au-ans button{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px 14px;font-weight:700;cursor:pointer;min-width:52px;color:var(--fg)}.au-ans button.on.y{background:#12b76a;color:#fff;border-color:#12b76a}.au-ans button.on.n{background:#d92d20;color:#fff;border-color:#d92d20}.au-ans button.on.na{background:#667085;color:#fff}.au-ans button.on.s{background:var(--pri);color:#fff}
-.au-score{position:sticky;top:0;z-index:5;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}.au-score .big{font-size:26px;font-weight:800}
+.au-score{position:sticky;top:calc(60px + env(safe-area-inset-top));z-index:5;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}.au-score .big{font-size:26px;font-weight:800}
 .lb-sheet{display:grid;gap:0;width:194mm}.lb{border:.2mm dashed #bbb;display:flex;gap:2.5mm;align-items:center;padding:2.5mm;overflow:hidden;box-sizing:border-box;font:8.5pt/1.25 Arial,sans-serif;color:#111;background:#fff}.lb .q{flex:0 0 auto}.lb .q svg{width:100%;height:100%;display:block}.lb .t{min-width:0}.lb .t b{display:block;font-size:11pt;word-break:break-all}.lb .t small{display:block;color:#444}
 .idc{width:85.6mm;height:54mm;border-radius:3mm;overflow:hidden;position:relative;box-sizing:border-box;border:.2mm solid #ccc;background:#fff;font:7.5pt/1.25 Arial,sans-serif;color:#111;page-break-inside:avoid}.idc .hd{height:13mm;display:flex;align-items:center;gap:2mm;padding:0 3mm;color:#fff}.idc .hd img{height:8mm;width:8mm;object-fit:contain;background:#fff;border-radius:2mm}.idc .hd b{font-size:8pt;line-height:1.1}.idc .bd{display:flex;gap:3mm;padding:2.5mm 3mm}.idc .av{width:17mm;height:21mm;border-radius:2mm;background:#e7ece9;display:flex;align-items:center;justify-content:center;font-size:16pt;font-weight:800;color:#556}.idc .nm{font-size:9.5pt;font-weight:800;margin-bottom:1mm}.idc .q{position:absolute;right:3mm;bottom:3mm;width:19mm;height:19mm}.idc .q svg{width:100%;height:100%}.idc .ft{position:absolute;left:0;right:0;bottom:0;height:3mm}
 .pk{width:186mm;height:128mm;border:1.2mm solid #111;border-radius:4mm;box-sizing:border-box;display:flex;align-items:center;gap:8mm;padding:8mm;font-family:Arial,sans-serif;page-break-inside:avoid;margin-bottom:6mm;background:#fff;color:#111}.pk .q{width:85mm;height:85mm}.pk .q svg{width:100%;height:100%}.pk h1{font-size:44pt;margin:0;letter-spacing:.02em}.pk p{font-size:15pt;margin:2mm 0}

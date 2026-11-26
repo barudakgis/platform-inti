@@ -1,4 +1,4 @@
-/* PALM OS 1.3.0 — kode server (.gs) dijalankan di browser. Dibangun otomatis; jangan diedit. */
+/* PALM OS 1.3.3 — kode server (.gs) dijalankan di browser. Dibangun otomatis; jangan diedit. */
 
 /* ===== Schema.gs ===== */
 /**
@@ -12,8 +12,8 @@ var APP = {
   NAME: 'PALM OS Enterprise',
   FULL: 'Integrated Oil Palm Plantation Management System',
   TAGLINE: 'One Company. One Data. One Integrated Plantation Ecosystem.',
-  VERSION: '1.3.0',
-  BUILD: '2026-11-25',
+  VERSION: '1.3.3',
+  BUILD: '2026-11-27',
   TZ: 'Asia/Jakarta',
   CHUNK: 45000,            // batas aman < 50.000 karakter per sel
   CELL_LIMIT: 10000000,    // batas 10 juta sel per spreadsheet
@@ -1005,7 +1005,7 @@ function apiSettingsSave(ctx, p) {
  */
 var TIERS = {
   TRIAL: { t: 'Trial 30 Hari', groups: '*', max_estates: 2, max_users: 10 },
-  STARTER: { t: 'Starter (Estate)', groups: 'dash,org,plant,nur,gis,agro,harv,rpt,appr,sys', max_estates: 3, max_users: 25 },
+  STARTER: { t: 'Starter (Estate)', groups: 'dash,org,plant,nur,gis,agro,harv,hr,inv,rpt,appr,sys', max_estates: 3, max_users: 25 },
   PROFESSIONAL: { t: 'Professional (Region)', groups: 'dash,org,plant,nur,lc,gis,agro,harv,bor,logi,mill,hr,inv,proc,asset,aud,rpt,appr,sys,docs', max_estates: 10, max_users: 150 },
   ENTERPRISE: { t: 'Enterprise (Group)', groups: '*', max_estates: -1, max_users: -1 }
 };
@@ -1053,8 +1053,24 @@ function licenseInfo_() {
     info = { tier: 'TRIAL', title: TIERS.TRIAL.t, customer: '-', exp: days + ' hari tersisa', days_left: days, groups: '*', max_estates: TIERS.TRIAL.max_estates, max_users: TIERS.TRIAL.max_users, readonly: days < 0, valid: days >= 0 };
     if (days < 0) info.reason = 'Masa trial berakhir. Mode baca-saja aktif sampai lisensi diaktifkan.';
   }
+  var moved = p.getProperty('PALM_MOVED_URL');
+  if (moved) { info.readonly = true; info.moved = moved; info.reason = 'PALM OS sudah pindah ke edisi Supabase: ' + moved + ' \u2014 aplikasi ini sekarang ARSIP (hanya untuk dilihat).'; }
   _memo.lic = info; return info;
 }
+
+/* ---------------- PINDAH PENUH (Tahap 4 migrasi Supabase) ----------------
+ * Jalankan palmPindahSelesai dari editor setelah semua data dipindah: aplikasi Apps Script ini
+ * menjadi ARSIP baca-saja, pengingat terjadwal dimatikan, pengguna diarahkan ke alamat baru.
+ * palmBukaKembali membatalkannya (mis. bila perlu kembali sementara). */
+function palmPindahSelesai(url) {
+  url = String(url || PropertiesService.getScriptProperties().getProperty('PALM_NEW_URL') || '').trim();
+  if (!/^https:\/\/.+/.test(url)) throw new Error('Isi alamat edisi Supabase, contoh: palmPindahSelesai("https://barudakgis.github.io/platform-inti/palmos/") \u2014 atau isi Script Property PALM_NEW_URL lalu jalankan lagi.');
+  var p = PropertiesService.getScriptProperties(); p.setProperty('PALM_MOVED_URL', url);
+  try { ScriptApp.getProjectTriggers().forEach(function (t) { if (['wfxReminder', 'pindahKeSupabase', 'pindahFoto'].indexOf(t.getHandlerFunction()) > -1) ScriptApp.deleteTrigger(t); }); } catch (e) { }
+  delete _memo.lic; Logger.log('\u2714 Apps Script PALM OS sekarang ARSIP baca-saja. Alamat baru: ' + url);
+  return url;
+}
+function palmBukaKembali() { PropertiesService.getScriptProperties().deleteProperty('PALM_MOVED_URL'); delete _memo.lic; Logger.log('Mode arsip dibatalkan: aplikasi Apps Script bisa dipakai menginput lagi.'); return 'ok'; }
 
 function licenseAllowsGroup_(g) {
   var l = licenseInfo_(); if (l.groups === '*' || ['dash', 'sys', 'appr', 'rpt', 'wfx', 'qr'].indexOf(g) > -1) return true;
@@ -1484,7 +1500,7 @@ function apiAiAsk(ctx, p) {
   var facts = 'Periode ' + d.period.from + ' s.d. ' + d.period.to + '. Luas tanam ' + k.area_ha + ' ha (TM ' + k.tm_ha + ', TBM ' + k.tbm_ha + '). Produksi ' + k.harvest_ton + ' ton, ' + k.janjang + ' janjang, BJR ' + k.bjr + ', ton/ha periode ' + k.ton_ha + ' (setara ' + k.ton_ha_year + ' ton/ha/th). Restan ' + k.restan_jjg + ' jjg, buah mentah ' + k.mentah_pct + '%. Netto PKS ' + k.netto_ton + ' ton, selisih panen vs PKS ' + k.recon_diff_pct + '%. OER ' + k.oer + '%, KER ' + k.ker + '%. Biaya tercatat Rp ' + fmtNum_(k.cost_rp) + ' (Rp ' + fmtNum_(k.cost_per_ton) + '/ton). Produksi per estate: ' + d.by_estate.map(function (e) { return e.estate + ' ' + e.ton + ' t (' + e.ton_ha + ' t/ha)'; }).join('; ') + '. Peringatan: ' + d.alerts.map(function (a) { return a.text; }).join('; ');
   var key = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY'), st = getSettings_();
   if (key && st.ai_enabled && !isDemo_()) {
-    var model = PropertiesService.getScriptProperties().getProperty('GEMINI_MODEL') || 'gemini-2.0-flash';
+    var model = PropertiesService.getScriptProperties().getProperty('GEMINI_MODEL') || 'gemini-flash-latest';
     var body = { contents: [{ role: 'user', parts: [{ text: 'Anda asisten analis perkebunan kelapa sawit. Jawab dalam Bahasa Indonesia, ringkas, hanya berdasarkan FAKTA berikut; jika data tidak cukup katakan tidak cukup. Pisahkan fakta, analisis, dan rekomendasi; rekomendasi agronomi wajib diverifikasi ahli.\nFAKTA: ' + facts + '\nPERTANYAAN: ' + q }] }] };
     var resp = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(key), { method: 'post', contentType: 'application/json', payload: JSON.stringify(body), muteHttpExceptions: true });
     if (resp.getResponseCode() === 200) {
@@ -2182,7 +2198,8 @@ function wfxIntegrate_(r, ctx) {
     var okN = 0; (p.lines || []).forEach(function (l) { try { var res = att(l.emp_no, r.date_from, null, l.hours); if (res.indexOf('lewati') < 0) okN++; } catch (e) { out.push({ ok: false, msg: 'Lembur ' + l.emp_no + ': ' + e.message }); } });
     out.push({ ok: true, msg: 'Jam lembur masuk ke Absensi untuk ' + okN + ' karyawan' });
   }
-  if (r.type === 'PENGADAAN') {
+  if (r.type === 'PENGADAAN' && !licenseAllowsGroup_('proc')) out.push({ ok: true, msg: 'Purchase Request tidak dibuat otomatis: modul Pengadaan tidak termasuk paket lisensi.' });
+  else if (r.type === 'PENGADAAN') {
     var prs = [], manual = 0, prSc = sc_('pr');
     (p.lines || []).forEach(function (l, i) {
       if (!l.item_code) { manual++; return; }
