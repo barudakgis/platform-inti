@@ -1,4 +1,4 @@
-/* PALM OS 1.3.3 — kode server (.gs) dijalankan di browser. Dibangun otomatis; jangan diedit. */
+/* PALM OS 1.3.4 — kode server (.gs) dijalankan di browser. Dibangun otomatis; jangan diedit. */
 
 /* ===== Schema.gs ===== */
 /**
@@ -12,7 +12,7 @@ var APP = {
   NAME: 'PALM OS Enterprise',
   FULL: 'Integrated Oil Palm Plantation Management System',
   TAGLINE: 'One Company. One Data. One Integrated Plantation Ecosystem.',
-  VERSION: '1.3.3',
+  VERSION: '1.3.4',
   BUILD: '2026-11-27',
   TZ: 'Asia/Jakarta',
   CHUNK: 45000,            // batas aman < 50.000 karakter per sel

@@ -2,7 +2,7 @@
  * - Berkas aplikasi (index, mesin, penghubung, pustaka) disimpan di perangkat.
  * - Data (Supabase) TIDAK disimpan di sini: aplikasi punya penyimpanan offline & antrean sendiri.
  * - Pustaka peta (unpkg) disimpan saat pertama dipakai. */
-const VERSION = 'palmos-4-3';
+const VERSION = 'palmos-4-4';
 const CORE = ['./', 'index.html', 'engine.html', 'engine.js', 'engine-shim.js', 'supa-api.js', 'supabase.js', 'config.js', 'icon-512.png', 'icon-192.png', 'manifest.webmanifest', 'verify.html'];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => Promise.all(CORE.map((u) => c.add(new Request(u, { cache: 'reload' })).catch(() => null)))).then(() => self.skipWaiting()));
@@ -18,11 +18,14 @@ self.addEventListener('fetch', (e) => {
   if (url.origin === scope.origin && url.pathname.startsWith(scope.pathname)) {
     if (req.mode === 'navigate' || /\/(index\.html|config\.js)?$/.test(url.pathname) || /config\.js$/.test(url.pathname)) {
       // halaman & config: utamakan jaringan (versi terbaru), cadangan dari perangkat
-      e.respondWith(fetch(req).then((r) => { if (r.ok) { const cp = r.clone(); caches.open(VERSION).then((c) => c.put(url.pathname.endsWith('/') ? req : stripQ(req), cp)); } return r; })
+      e.respondWith(fetch(req, { cache: 'no-cache' }).then((r) => { if (r.ok) { const cp = r.clone(); caches.open(VERSION).then((c) => c.put(url.pathname.endsWith('/') ? req : stripQ(req), cp)); } return r; })
         .catch(() => caches.match(req, { ignoreSearch: true }).then((m) => m || caches.match('index.html'))));
       return;
     }
-    e.respondWith(caches.match(req, { ignoreSearch: true }).then((m) => m || fetch(req).then((r) => { if (r.ok) { const cp = r.clone(); caches.open(VERSION).then((c) => c.put(stripQ(req), cp)); } return r; })));
+    // berkas bernomor versi (?v=...) harus sama persis: jangan pernah mencampur versi lama & baru
+    const ver = url.searchParams.has('v');
+    e.respondWith(caches.match(req, { ignoreSearch: !ver }).then((m) => m || fetch(req, ver ? { cache: 'reload' } : undefined).then((r) => { if (r.ok) { const cp = r.clone(); caches.open(VERSION).then((c) => c.put(ver ? req : stripQ(req), cp)); } return r; })
+      .catch(() => caches.match(req, { ignoreSearch: true }))));
     return;
   }
   if (url.host === 'unpkg.com') {

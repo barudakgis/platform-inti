@@ -253,9 +253,10 @@ body.demo #top:after{content:"DEMO";position:absolute;left:50%;top:6px;transform
   <div id="printArea"></div>
 
   <!-- Penjaga pemuatan: tampilkan sebab bila aplikasi gagal start, tidak pernah loading tanpa kejelasan -->
-  <script src="config.js?v=1.3.3-4-3"></script>
-  <script src="supabase.js?v=1.3.3-4-3"></script>
-  <script src="supa-api.js?v=1.3.3-4-3"></script>
+  <script src="config.js?v=1.3.4-4-4"></script>
+  <script src="supabase.js?v=1.3.4-4-4"></script>
+  <script src="supa-api.js?v=1.3.4-4-4"></script>
+  <script>(function(){try{var B="4-4";if(window.PalmSupa&&PalmSupa.build===B)return;if(sessionStorage.getItem("palmos-rl")===B)return;sessionStorage.setItem("palmos-rl",B);var go=function(){location.reload();};if(window.caches)caches.keys().then(function(k){return Promise.all(k.filter(function(n){return /^palmos-/.test(n)&&n!=="palmos-lib";}).map(function(n){return caches.delete(n);}));}).then(go,go);else go();}catch(e){}})();</script>
     <script>
   (function () {
     var errs = [], shown = false;
@@ -466,7 +467,7 @@ function render(st) {
   if (S.onLeave) { try { S.onLeave(); } catch (e) { } S.onLeave = null; }
   st.params = st.params || {}; S.cur = st; document.body.classList.remove('side-open');
   $$('.nav-i,.nav-gh').forEach(a => a.classList.toggle('active', a.dataset.v === st.view && (a.dataset.m || '') === (st.params.mod || '')));
-  bnavActive(st.view);
+  bnavActive(st.view); kbSync();
   const fn = VIEWS[st.view] || VIEWS.dashboard, v = $('#view'); v.innerHTML = skeleton(); v.scrollTop = 0; window.scrollTo(0, 0);
   Promise.resolve().then(() => fn(v, st.params || {})).catch(e => { if (S.cur !== st) return; v.innerHTML = `<div class="errbox"><b>Gagal memuat:</b> ${esc(e.message)}<br><button class="btn sm" onclick="render(S.cur)">Coba lagi</button></div>`; });
 }
@@ -609,14 +610,22 @@ function buildBottomNav() {
   el.innerHTML = items.map(([v, g, ico, l]) => `<button type="button" class="bn-i" data-act="go" data-v="${v}" aria-label="${esc(l)}"><span class="bi">${ico}</span><span class="bl">${esc(l)}</span></button>`).join('') +
     '<button type="button" class="bn-i" data-act="toggleSide" data-v="_menu" aria-label="Semua menu"><span class="bi">\u2630</span><span class="bl">Menu</span></button>';
   if (S.cur) bnavActive(S.cur.view);
+  kbSync();
 }
 function bnavActive(view) {
   const v = BNAV_ALIAS[view] || view, hit = $$('#bnav .bn-i').some(b => b.dataset.v === v);
   $$('#bnav .bn-i').forEach(b => b.classList.toggle('active', b.dataset.v === v || (!hit && b.dataset.v === '_menu')));
 }
-/* Saat keyboard HP terbuka, menu bawah disembunyikan agar tidak menutupi isian */
-document.addEventListener('focusin', e => { const t = e.target; if (window.innerWidth <= 900 && t && (/TEXTAREA|SELECT/.test(t.tagName) || (t.tagName === 'INPUT' && !/checkbox|radio|button|submit|color|range|file/.test(t.type)))) document.body.classList.add('kb'); });
-document.addEventListener('focusout', () => setTimeout(() => { const a = document.activeElement; if (!a || !/INPUT|TEXTAREA|SELECT/.test(a.tagName)) document.body.classList.remove('kb'); }, 120));
+/* Saat keyboard HP terbuka, menu bawah disembunyikan agar tidak menutupi isian.
+   Hanya berlaku bila kolom isian yang aktif benar-benar terlihat di dalam aplikasi (bukan layar login). */
+function kbSync() {
+  const a = document.activeElement, txt = !!a && (/TEXTAREA|SELECT/.test(a.tagName) || (a.tagName === 'INPUT' && !/checkbox|radio|button|submit|color|range|file|hidden/.test(a.type)));
+  const on = window.innerWidth <= 900 && txt && a.offsetParent !== null && !!a.closest('#app') && !$('#app').classList.contains('hidden');
+  document.body.classList.toggle('kb', on);
+}
+document.addEventListener('focusin', kbSync);
+document.addEventListener('focusout', () => setTimeout(kbSync, 150));
+window.addEventListener('resize', () => setTimeout(kbSync, 150));
 
 /* ---------- Delegasi klik global ---------- */
 document.addEventListener('click', e => {

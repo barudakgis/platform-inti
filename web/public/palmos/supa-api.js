@@ -20,7 +20,7 @@
 /* tautan verifikasi dokumen dari QR → halaman publik ringan (tanpa login) */
 (function () { try { var q = new URLSearchParams(location.search); if (q.get('verify')) location.replace('verify.html' + location.search); } catch (e) { } })();
 var PalmSupa = (function () {
-  var STAGE = '4', BUILD = '4-3';
+  var STAGE = '4', BUILD = '4-4';
   var PAGE = 1000, TTL = 45000, PAR = 4;
   var LATER = {}, MFA_PENDING = null;
   var NA = { trim: 1, archive: 1 };
@@ -459,7 +459,7 @@ var PalmSupa = (function () {
   /* ------------------------------------------------------------ PWA: pasang di HP & buka offline */
   (function pwa() {
     if (!('serviceWorker' in navigator) || location.protocol === 'file:') return;
-    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js?v=' + BUILD).catch(function () { }); });
+    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js?v=' + BUILD, { updateViaCache: 'none' }).catch(function () { }); });
     var deferred = null;
     window.addEventListener('beforeinstallprompt', function (e) {
       e.preventDefault(); deferred = e;
