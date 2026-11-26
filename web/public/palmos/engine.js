@@ -2948,7 +2948,7 @@ function clearDemo() {
  * - Data tabel dibaca dari penyimpanan memori yang diisi penghubung (supa-api.js) dari Supabase.
  * - Tabel yang belum dimuat dicatat (__MISSED) → penghubung memuatnya lalu mengulang perintah.
  * - Sesi, role, cakupan & lisensi berasal dari Platform Inti (palm_whoami).
- * - Penulisan ke "sheet" dimatikan di Tahap 2a. */
+ * - Penulisan dicatat (ops) lalu disimpan ke Supabase oleh penghubung (Tahap 2b). */
 var __SUPA = { user: null, lic: null, org: '', orgName: '', appUrl: '' };
 var __T = {}, __KNOWN = {}, __MISSED = [];
 if (!ROLES.VIEWER) ROLES.VIEWER = { t: 'Viewer (hanya melihat)', all: 'V' };
@@ -2966,12 +2966,71 @@ table_ = function (name) {
   _memo[mk] = out; return out;
 };
 invalidate_ = function (name) { delete _memo['t:' + name]; };
-function __noWrite() { var e = new Error('Menyimpan data belum aktif (edisi Supabase Tahap 2a: data hanya bisa dilihat).'); e.code = 'STAGE'; throw e; }
-appendObj_ = function () { __noWrite(); };
-updateObj_ = function () { __noWrite(); };
-chunkPut_ = function () { __noWrite(); };
+/* ---- penulisan (Tahap 2b): perubahan dicatat sebagai daftar "ops" lalu disimpan penghubung lewat palm_apply ---- */
+var __OPS = [], __UNDO = {}, __UPL = [];
+function __clean(obj) {
+  var o = {};
+  Object.keys(obj).forEach(function (k) {
+    if (k === '_row') return; var v = obj[k];
+    if (v instanceof Date) v = isNaN(v) ? '' : v.toISOString();
+    else if (v !== null && typeof v === 'object') v = JSON.stringify(v);
+    else if (v === undefined || v === null) v = '';
+    o[k] = v;
+  });
+  return o;
+}
+function __snap(name) {
+  if (__UNDO[name] !== undefined) return;
+  var t = __T[name]; __UNDO[name] = t ? { h: t.h.slice(), rows: t.rows.slice() } : null;
+}
+appendObj_ = function (name, headers, obj) {
+  __snap(name);
+  var row = __clean(obj), t = __T[name];
+  if (t) { (headers || []).concat(Object.keys(row)).forEach(function (h) { if (t.h.indexOf(h) < 0) t.h.push(h); }); t.rows.push(row); }
+  invalidate_(name); __OPS.push({ sheet: name, row: row });
+};
+updateObj_ = function (name, rowNum, obj) {
+  __snap(name);
+  var row = __clean(obj), t = __T[name];
+  if (t) {
+    var i = rowNum - 2;
+    if (!(t.rows[i] && t.rows[i].id === row.id)) { i = -1; for (var j = 0; j < t.rows.length; j++) if (t.rows[j].id === row.id) { i = j; break; } }
+    if (i >= 0) t.rows[i] = row; else t.rows.push(row);
+    Object.keys(row).forEach(function (h) { if (t.h.indexOf(h) < 0) t.h.push(h); });
+  }
+  invalidate_(name); __OPS.push({ sheet: name, row: row });
+};
+chunkPut_ = function (str) { return str; };            /* database menampung teks panjang tanpa dipotong */
 chunkDelete_ = function () { };
-audit_ = function () { };
+/* foto/lampiran: diunggah penghubung ke Supabase Storage (bucket palmos) */
+storeFile_ = function (v, prefix) {
+  if (typeof v !== 'string' || v.indexOf('data:') !== 0) return v;
+  var m = v.match(/^data:([^;]+);base64,(.*)$/); if (!m) return v;
+  var ext = (m[1].split('/')[1] || 'bin').replace('jpeg', 'jpg').replace(/[^a-z0-9]/gi, '').slice(0, 8) || 'bin';
+  var name = String(prefix || 'file').replace(/[^A-Za-z0-9_-]/g, '_') + '_' + Date.now() + '.' + ext;
+  var path = __SUPA.org + '/' + String(prefix || 'file').split('_')[0].replace(/[^A-Za-z0-9-]/g, '') + '/' + Utilities.getUuid() + '.' + ext;
+  __UPL.push({ path: path, data: v, mime: m[1] });
+  return JSON.stringify({ id: path, url: '@@UPLOAD:' + path + '@@', name: name, mime: m[1], storage: 'palmos' });
+};
+apiNotifs = function (ctx, p) {
+  if (p && p.markRead) {
+    table_(SYS.NOTIF).rows.forEach(function (n) { if (n.user === ctx.user.username && String(n.read) !== 'true') { var c = {}; for (var k in n) c[k] = n[k]; c.read = true; updateObj_(SYS.NOTIF, n._row, c); } });
+  }
+  return table_(SYS.NOTIF).rows.filter(function (n) { return n.user === ctx.user.username; }).slice(-50).reverse();
+};
+function __undo() { Object.keys(__UNDO).forEach(function (n) { if (__UNDO[n]) __T[n] = __UNDO[n]; else delete __T[n]; }); __UNDO = {}; __OPS = []; __UPL = []; }
+function __commit() { __UNDO = {}; __OPS = []; __UPL = []; }
+/* setelah unggah: ganti penanda @@UPLOAD:path@@ dengan alamat file */
+function __fixUploads(json) {
+  var map = JSON.parse(json);
+  Object.keys(__T).forEach(function (n) {
+    __T[n].rows.forEach(function (r, i) {
+      var ch = false, o = {};
+      Object.keys(r).forEach(function (k) { var v = r[k]; if (typeof v === 'string' && v.indexOf('@@UPLOAD:') > -1) { v = v.replace(/@@UPLOAD:([^@]+)@@/g, function (x, p) { return map[p] || x; }); ch = true; } o[k] = v; });
+      if (ch) __T[n].rows[i] = o;
+    });
+  });
+}
 ctx_ = function (token, device) {
   if (!__SUPA.user) throw err_('Sesi berakhir, silakan login kembali', 'NOSESSION');
   var c = buildCtx_(__SUPA.user, device); c.tokenHash = 'supabase'; return c;
@@ -2996,8 +3055,8 @@ function __clearAll() { __T = {}; __SUPA.user = null; __SUPA.lic = null; }
 function __setSession(json) { var s = JSON.parse(json); Object.keys(s).forEach(function (k) { __SUPA[k] = s[k]; }); }
 function __loaded() { return Object.keys(__T); }
 function __run(action, payload, device) {
-  __MISSED = []; _memo = {};
+  __undo(); __MISSED = []; _memo = {};
   var s = rpc(action, 'supabase', payload ? JSON.parse(payload) : {}, device || '');
-  return JSON.stringify({ s: s, missed: __MISSED.slice() });
+  return JSON.stringify({ s: s, missed: __MISSED.slice(), ops: __OPS.slice(), uploads: __UPL.slice() });
 }
 window.__engineReady = true;

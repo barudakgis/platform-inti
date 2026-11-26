@@ -7,14 +7,20 @@
  *    menerima data yang boleh ia lihat (role × cakupan Region/Estate/Afdeling, organisasi sendiri).
  *  - Perhitungan (dashboard, laporan, peta, workflow, QR, operasi) memakai KODE SERVER PALM OS YANG SAMA
  *    (berkas .gs) yang berjalan di "mesin" (iframe engine.html) → hasilnya identik dengan versi Google Sheets.
- *  - Menyimpan/mengubah data aktif di Tahap 2b; pengguna, pengaturan & AI di Tahap 2c.
+ *  - Tahap 2b: aksi simpan/ubah/hapus/persetujuan/workflow dijalankan mesin yang sama; semua perubahannya
+ *    dikirim SEKALIGUS ke palm_apply (satu transaksi, diperiksa izin, cakupan & konflik versi di database).
+ *    Foto/lampiran diunggah ke Supabase Storage (bucket palmos).
+ *  - Pengguna, pengaturan, profil/password & AI di Tahap 2c.
  */
 'use strict';
 var PalmSupa = (function () {
-  var STAGE = '2a', BUILD = '2a-1';
+  var STAGE = '2b', BUILD = '2b-1';
   var PAGE = 1000, TTL = 45000, PAR = 4;
-  var WRITE = { save: 1, remove: 1, transition: 1, batch: 1, settingsSave: 1, profile: 1, changePw: 1, mfaSetup: 1, mfaEnable: 1,
-    userSave: 1, trim: 1, archive: 1, wfSave: 1, wfAct: 1, wfNotify: 1, wfAttach: 1, wfDelegate: 1, wfHolidaySeed: 1, aiAsk: 1 };
+  var LATER = { settingsSave: 1, profile: 1, changePw: 1, mfaSetup: 1, mfaEnable: 1, userSave: 1, aiAsk: 1 };
+  var NA = { trim: 1, archive: 1 };
+  var WRITES = { save: 1, remove: 1, transition: 1, batch: 1, wfSave: 1, wfAct: 1, wfNotify: 1, wfAttach: 1, wfDelegate: 1, wfHolidaySeed: 1 };
+  var LOCK = Promise.resolve();
+  function serial(fn) { var p = LOCK.then(fn, fn); LOCK = p.catch(function () { }); return p; }
   var sb = null, WHO = null, WHO_AT = 0, META = null, BY_SHEET = {}, STORE = {}, ENG = null, ENGP = null, NEEDS = {};
   try { NEEDS = JSON.parse(localStorage.getItem('palm_needs') || '{}') || {}; } catch (e) { NEEDS = {}; }
 
@@ -107,7 +113,7 @@ var PalmSupa = (function () {
       reason: 'Lisensi PALM OS untuk "' + w.org_name + '" belum aktif atau sudah berakhir. Aktifkan di Platform Inti. Data tetap bisa dilihat.' };
     return { tier: String(l.plan || 'pro').toUpperCase(), title: 'Platform Inti · ' + (l.plan || 'pro'), customer: w.org_name, exp: l.valid_until || 'Tanpa batas', groups: '*', max_estates: -1,
       max_users: l.max_users || -1, valid: true, platform: true, stage: STAGE,
-      readonly: STAGE === '2a', reason: STAGE === '2a' ? 'Edisi Supabase · uji Tahap 2a: data hanya bisa DILIHAT. Menyimpan aktif setelah Tahap 2b.' : '' };
+      readonly: false, reason: '' };
   }
 
   /* ------------------------------------------------------------ metadata & muat tabel */
@@ -248,17 +254,60 @@ var PalmSupa = (function () {
     var eng = await engine(); await who(); await meta();
     var keys = needKeys(action, payload), pre = ['_Settings'];
     keys.forEach(function (k) { (NEEDS[k] || []).forEach(function (s) { if (pre.indexOf(s) < 0) pre.push(s); }); });
-    await refreshStale();
+    var writing = WRITES[action] || (action === 'notifs' && payload && payload.markRead) || (action === 'multi' && ((payload && payload.calls) || []).some(function (c) { return WRITES[c[0]]; }));
+    if (writing) await refreshAll(); else await refreshStale();
     await loadMany(pre);
     var pj = JSON.stringify(payload || {});
-    for (var round = 0; round < 8; round++) {
+    for (var round = 0; round < 9; round++) {
       var out = JSON.parse(eng.__run(action, pj, device));
       var miss = out.missed.filter(function (s) { return !STORE[s]; });
       if (out.missed.length) remember(keys, out.missed);
-      if (!miss.length) return out.s;
-      await loadMany(miss);
+      if (miss.length && round < 8) { eng.__undo(); await loadMany(miss); continue; }
+      if (!out.ops.length) { eng.__commit(); return out.s; }
+      var res = JSON.parse(out.s);
+      if (!res.ok && action !== 'batch' && action !== 'multi') { eng.__undo(); return out.s; }
+      try { await commit(eng, action, out); } catch (e) {
+        eng.__undo();
+        (out.ops || []).forEach(function (o) { if (STORE[o.sheet]) STORE[o.sheet].at = 0; });
+        throw e;
+      }
+      eng.__commit();
+      if (out.uploads.length) return out.s.replace(/@@UPLOAD:([^@]+)@@/g, function (x, p) { return (LAST_UP[p] || x); });
+      return out.s;
     }
     return JSON.parse(eng.__run(action, pj, device)).s;
+  }
+  var LAST_UP = {};
+  async function commit(eng, action, out) {
+    var ops = out.ops;
+    if (out.uploads.length) {
+      var map = {};
+      for (var i = 0; i < out.uploads.length; i++) {
+        var u = out.uploads[i], bin = dataToBlob(u.data);
+        var up = await client().storage.from('palmos').upload(u.path, bin, { contentType: u.mime, upsert: false });
+        if (up.error) throw appErr('UPLOAD', 'Gagal mengunggah file ke Supabase Storage: ' + (up.error.message || up.error));
+        var sg = await client().storage.from('palmos').createSignedUrl(u.path, 60 * 60 * 24 * 365 * 5);
+        if (sg.error) throw appErr('UPLOAD', 'File terunggah tetapi alamatnya gagal dibuat: ' + (sg.error.message || sg.error));
+        map[u.path] = sg.data.signedUrl; LAST_UP[u.path] = sg.data.signedUrl;
+      }
+      var js = JSON.stringify(ops).replace(/@@UPLOAD:([^@]+)@@/g, function (x, p) { return map[p] ? JSON.stringify(map[p]).slice(1, -1) : x; });
+      ops = JSON.parse(js);
+      eng.__fixUploads(JSON.stringify(map));
+    }
+    var r = await client().rpc('palm_apply', { p_org: WHO.org_id, p_ops: ops, p_action: action });
+    if (r.error) throw dbErr(r.error, 'palm_apply');
+    var now = new Date().toISOString();
+    ops.forEach(function (o) { var st = STORE[o.sheet]; if (st && !st.special) { /* baris sudah ada di mesin; tanda waktu tetap */ } });
+    void now; return r.data;
+  }
+  function dataToBlob(d) {
+    var m = /^data:([^;]+);base64,(.*)$/.exec(d), bin = atob(m[2]), a = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+    return new Blob([a], { type: m[1] });
+  }
+  async function refreshAll() {
+    var list = Object.keys(STORE);
+    for (var i = 0; i < list.length; i += PAR) await Promise.all(list.slice(i, i + PAR).map(refresh));
   }
 
   /* ------------------------------------------------------------ aksi khusus */
@@ -288,7 +337,7 @@ var PalmSupa = (function () {
     return boot;
   }
   async function bootMe(device) {
-    var s = await runEngine('me', {}, device), o = JSON.parse(s);
+    var s = await serial(function () { return runEngine('me', {}, device); }), o = JSON.parse(s);
     if (!o.ok) { var e = appErr(o.code, o.error); throw e; }
     o.data.supabase = { stage: STAGE, build: BUILD, org: WHO.org_name, email: (WHO.user || {}).auth_email };
     savePub(o.data); return o.data;
@@ -313,13 +362,14 @@ var PalmSupa = (function () {
     if (action === 'login') return login(payload || {});
     if (action === 'logout') { clearData(); try { await client().auth.signOut(); } catch (e) { } return { ok: true }; }
     if (action === 'me') { await who(true); return bootMe(device); }
-    if (WRITE[action]) {
+    if (LATER[action]) {
       if (action === 'aiAsk') throw appErr('STAGE', 'Fitur AI aktif di Tahap 2c edisi Supabase.');
-      throw appErr('STAGE', 'Uji Tahap 2a: data hanya bisa DILIHAT. Menyimpan & mengubah aktif setelah Tahap 2b.');
+      throw appErr('STAGE', 'Profil, password, pengaturan & pengguna edisi Supabase aktif di Tahap 2c.');
     }
+    if (NA[action]) throw appErr('STAGE', 'Tidak diperlukan di edisi Supabase: database tidak dibatasi 10 juta sel, jadi rapikan sel & arsip tahunan tidak perlu.');
     if (action === 'license' && payload && payload.key) throw appErr('STAGE', 'Lisensi edisi Supabase dikelola di Platform Inti (menu Lisensi organisasi), bukan dengan kunci POS1.');
     if (action === 'usage') return usage();
-    var s = await runEngine(action, payload, device), o = JSON.parse(s);
+    var s = await serial(function () { return runEngine(action, payload, device); }), o = JSON.parse(s);
     if (o.ok) return o.data;
     throw appErr(o.code, o.error);
   }
