@@ -20,7 +20,7 @@
 /* tautan verifikasi dokumen dari QR → halaman publik ringan (tanpa login) */
 (function () { try { var q = new URLSearchParams(location.search); if (q.get('verify')) location.replace('verify.html' + location.search); } catch (e) { } })();
 var PalmSupa = (function () {
-  var STAGE = '4', BUILD = '4-2';
+  var STAGE = '4', BUILD = '4-3';
   var PAGE = 1000, TTL = 45000, PAR = 4;
   var LATER = {}, MFA_PENDING = null;
   var NA = { trim: 1, archive: 1 };
@@ -99,6 +99,7 @@ var PalmSupa = (function () {
     return r.data.session;
   }
   async function who(force) {
+    if (OUT) throw appErr('NOSESSION', 'Sesi berakhir, silakan login kembali');
     if (WHO && !force && Date.now() - WHO_AT < 300000) return WHO;
     await session();
     try { WHO = await rpcDb('palm_whoami', {}); } catch (e) {
@@ -106,6 +107,7 @@ var PalmSupa = (function () {
       if (/belum menjadi anggota|dinonaktifkan/i.test(e.message)) { await client().auth.signOut().catch(function () { }); throw appErr('AUTH', e.message); }
       throw e;
     }
+    if (OUT) { WHO = null; throw appErr('NOSESSION', 'Sesi berakhir, silakan login kembali'); }
     try { var gu = await client().auth.getUser(); WHO.mfa_on = !!(gu.data && gu.data.user && (gu.data.user.factors || []).some(function (f) { return f.status === 'verified'; })); } catch (e) { WHO.mfa_on = false; }
     WHO_AT = Date.now();
     var eng = await engine();
@@ -121,8 +123,10 @@ var PalmSupa = (function () {
     var l = w.license || {};
     if (!w.licensed) return { tier: 'NONE', title: 'Belum berlangganan / berakhir', customer: w.org_name, exp: l.valid_until || '-', groups: '*', max_estates: 0, max_users: 0, readonly: true, valid: false,
       reason: 'Lisensi PALM OS untuk "' + w.org_name + '" belum aktif atau sudah berakhir. Aktifkan di Platform Inti. Data tetap bisa dilihat.' };
-    return { tier: String(l.plan || 'pro').toUpperCase(), title: 'Platform Inti · ' + (l.plan || 'pro'), customer: w.org_name, exp: l.valid_until || 'Tanpa batas', groups: '*', max_estates: -1,
-      max_users: l.max_users || -1, valid: true, platform: true, stage: STAGE,
+    var pk = l.paket || {};
+    return { tier: String(pk.plan || l.plan || 'pro').toUpperCase(), title: 'Platform Inti \u00B7 ' + (pk.title || l.plan || 'pro'), plan: pk.plan || l.plan, customer: w.org_name, exp: l.valid_until || 'Tanpa batas',
+      groups: pk.groups || '*', max_estates: pk.max_estates == null ? -1 : pk.max_estates,
+      max_users: pk.max_users == null ? (l.max_users || -1) : pk.max_users, valid: true, platform: true, stage: STAGE,
       readonly: false, reason: '' };
   }
 
