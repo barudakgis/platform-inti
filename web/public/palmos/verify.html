@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Verifikasi Dokumen — PALM OS</title><link rel="icon" href="icon-192.png">
+<style>
+body{font-family:Arial,Helvetica,sans-serif;background:#eef3f0;margin:0;color:#1b2a22}.w{max-width:560px;margin:0 auto;padding:16px}
+.c{background:#fff;border-radius:16px;padding:18px;box-shadow:0 4px 18px rgba(0,0,0,.08);margin-bottom:12px}
+h1{font-size:18px;margin:0 0 4px;color:#0f6b4b}.m{color:#5b6b62;font-size:13px}table{width:100%;border-collapse:collapse;font-size:14px}
+td{padding:6px 4px;border-bottom:1px solid #e3ebe6;vertical-align:top}td:first-child{color:#5b6b62;width:38%}
+.ok{background:#e7f6ee;color:#0f6b4b;border:1px solid #9fd3b6;border-radius:12px;padding:12px;font-weight:700;margin:10px 0}
+.no{background:#fdecea;color:#b42318;border:1px solid #f3b4ad;border-radius:12px;padding:12px;font-weight:700;margin:10px 0}
+.st{font-size:13px;margin:4px 0;padding:6px 8px;border-radius:8px;background:#f3f6f4}.st.OK{background:#e7f6ee}.st.NO{background:#fdecea}
+</style></head>
+<body><div class="w"><div class="c"><h1 id="t">Verifikasi Dokumen</h1><div class="m" id="o">PALM OS Enterprise</div><div id="b"><p class="m">Memeriksa…</p></div>
+<p class="m" id="f"></p></div></div>
+<script src="config.js"></script><script src="supabase.js"></script>
+<script>
+(function () {
+  function E(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  var q = new URLSearchParams(location.search), code = q.get('verify') || '', k = q.get('k') || '', b = document.getElementById('b');
+  document.getElementById('f').textContent = 'Diperiksa ' + new Date().toLocaleString('id-ID') + '. Halaman ini hanya menampilkan ringkasan untuk keperluan verifikasi.';
+  var ST = { OK: 'Disetujui', NO: 'Ditolak', REV: 'Dikembalikan', PEND: 'Menunggu', WAIT: 'Antre', SKIP: 'Dilewati' };
+  var NM = { CUTI: 'Cuti Karyawan', IZIN: 'Izin / Keluar Kebun', LEMBUR: 'Surat Perintah Lembur', SPPD: 'Perjalanan Dinas (SPPD)', DEKLARASI: 'Deklarasi Biaya', KASBON: 'Uang Muka / Kasbon', PENGADAAN: 'Pengadaan Barang & Jasa' };
+  try {
+    var c = window.PALMOS_SUPABASE || {}, sb = window.supabase.createClient(String(c.url).replace(/\/+$/, ''), c.key, { auth: { persistSession: false } });
+    sb.rpc('palm_qr_verify', { p_code: code, p_k: k }).then(function (r) {
+      var d = r.data || {};
+      if (r.error || !d.ok) { b.innerHTML = '<div class="no">✖ Dokumen tidak dapat diverifikasi. Kode tidak cocok atau dokumen tidak terdaftar.</div>'; return; }
+      document.getElementById('o').textContent = (d.app || 'PALM OS') + ' · ' + (d.org || '');
+      var rows = [['Nomor', d.code], ['Jenis', NM[d.type] || d.type], ['Atas nama', (d.emp_name || '') + (d.emp_no ? ' (' + d.emp_no + ')' : '')], ['Perihal', d.title],
+        ['Tanggal', (d.date_from || '') + (d.date_to && d.date_to !== d.date_from ? ' s.d. ' + d.date_to : '')], ['Status', d.status]];
+      if (Number(d.amount)) rows.push(['Nilai', 'Rp ' + Number(d.amount).toLocaleString('id-ID')]);
+      b.innerHTML = '<div class="ok">✔ Dokumen ASLI — tercatat di sistem</div><table>' + rows.map(function (x) { return '<tr><td>' + E(x[0]) + '</td><td>' + E(x[1]) + '</td></tr>'; }).join('') + '</table>'
+        + '<h3 style="font-size:15px;margin:14px 0 6px">Persetujuan</h3>' + (d.steps || []).map(function (s) { return '<div class="st ' + E(s.st) + '">' + E(s.t) + ': ' + E(s.name) + ' — ' + E(ST[s.st] || s.st) + (s.at ? ' (' + E(String(s.at).slice(0, 16).replace('T', ' ')) + ')' : '') + '</div>'; }).join('');
+    }, function () { b.innerHTML = '<div class="no">Gagal terhubung. Periksa koneksi lalu muat ulang.</div>'; });
+  } catch (e) { b.innerHTML = '<div class="no">Halaman verifikasi belum dikonfigurasi (config.js).</div>'; }
+})();
+</script></body></html>

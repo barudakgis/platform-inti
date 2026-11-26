@@ -13,12 +13,16 @@
  *  - Tahap 2c: pengaturan (lewat palm_apply), profil & password (Supabase Auth), pengguna & role (palm_member_save),
  *    AI Gemini / WhatsApp gateway / email lewat Edge Function palmos-proxy (kunci rahasia tidak pernah sampai ke browser),
  *    tautan persetujuan WhatsApp (?wfa=) membuka pengajuan langsung setelah login.
+ *  - Tahap 3: PWA (pasang di HP, buka offline), MFA TOTP Supabase Auth (ditegakkan database: aal2),
+ *    halaman verifikasi QR publik (verify.html), foto lama Google Drive dipindah ke Storage (PindahFoto.gs).
  */
 'use strict';
+/* tautan verifikasi dokumen dari QR → halaman publik ringan (tanpa login) */
+(function () { try { var q = new URLSearchParams(location.search); if (q.get('verify')) location.replace('verify.html' + location.search); } catch (e) { } })();
 var PalmSupa = (function () {
-  var STAGE = '2c', BUILD = '2c-1';
+  var STAGE = '3', BUILD = '3-1';
   var PAGE = 1000, TTL = 45000, PAR = 4;
-  var LATER = { mfaSetup: 1, mfaEnable: 1 };
+  var LATER = {}, MFA_PENDING = null;
   var NA = { trim: 1, archive: 1 };
   var WRITES = { save: 1, remove: 1, transition: 1, batch: 1, wfSave: 1, wfAct: 1, wfNotify: 1, wfAttach: 1, wfDelegate: 1, wfHolidaySeed: 1, settingsSave: 1 };
   var LOCK = Promise.resolve();
@@ -98,9 +102,11 @@ var PalmSupa = (function () {
     if (WHO && !force && Date.now() - WHO_AT < 300000) return WHO;
     await session();
     try { WHO = await rpcDb('palm_whoami', {}); } catch (e) {
+      if (e.code === 'MFA') throw appErr('NOSESSION', e.message);
       if (/belum menjadi anggota|dinonaktifkan/i.test(e.message)) { await client().auth.signOut().catch(function () { }); throw appErr('AUTH', e.message); }
       throw e;
     }
+    try { var gu = await client().auth.getUser(); WHO.mfa_on = !!(gu.data && gu.data.user && (gu.data.user.factors || []).some(function (f) { return f.status === 'verified'; })); } catch (e) { WHO.mfa_on = false; }
     WHO_AT = Date.now();
     var eng = await engine();
     eng.__setSession(JSON.stringify({ user: userObj(WHO), lic: licObj(WHO), org: WHO.org_id, orgName: WHO.org_name, appUrl: location.href.split('?')[0].split('#')[0] }));
@@ -109,7 +115,7 @@ var PalmSupa = (function () {
   function userObj(w) {
     var u = w.user || {};
     return { id: u.id, username: u.username, name: u.name || u.username, email: u.email || '', role: w.role, scope_type: w.scope_type || 'ALL', scope_codes: w.scope_codes || '',
-      active: true, photo: u.photo || '', mfa_on: false, must_change: false, last_login: u.last_login || '' };
+      active: true, photo: u.photo || '', mfa_on: !!w.mfa_on, must_change: false, last_login: u.last_login || '' };
   }
   function licObj(w) {
     var l = w.license || {};
@@ -290,7 +296,7 @@ var PalmSupa = (function () {
       for (var i = 0; i < out.uploads.length; i++) {
         var u = out.uploads[i], bin = dataToBlob(u.data);
         var up = await client().storage.from('palmos').upload(u.path, bin, { contentType: u.mime, upsert: false });
-        if (up.error) throw appErr('UPLOAD', 'Gagal mengunggah file ke Supabase Storage: ' + (up.error.message || up.error));
+        if (up.error) { if (/fetch|network|timeout/i.test(up.error.message || '')) throw netErr('Gagal mengunggah foto — koneksi terputus'); throw appErr('UPLOAD', 'Gagal mengunggah file ke Supabase Storage: ' + (up.error.message || up.error)); }
         var sg = await client().storage.from('palmos').createSignedUrl(u.path, 60 * 60 * 24 * 365 * 5);
         if (sg.error) throw appErr('UPLOAD', 'File terunggah tetapi alamatnya gagal dibuat: ' + (sg.error.message || sg.error));
         map[u.path] = sg.data.signedUrl; LAST_UP[u.path] = sg.data.signedUrl;
@@ -417,6 +423,50 @@ var PalmSupa = (function () {
   }
   wfaLater();
 
+  /* ------------------------------------------------------------ MFA (TOTP Supabase Auth) */
+  async function mfaSetup() {
+    await who();
+    var fl = await client().auth.mfa.listFactors();
+    var old = ((fl.data && fl.data.all) || []).filter(function (f) { return f.status !== 'verified'; });
+    for (var i = 0; i < old.length; i++) await client().auth.mfa.unenroll({ factorId: old[i].id });
+    var r = await client().auth.mfa.enroll({ factorType: 'totp', friendlyName: 'PALM OS ' + new Date().toISOString().slice(0, 16) });
+    if (r.error) throw dbErr(r.error, 'mfa');
+    MFA_PENDING = r.data.id;
+    return { secret: r.data.totp.secret, uri: r.data.totp.uri, qr: r.data.totp.qr_code };
+  }
+  async function mfaEnable(p) {
+    await who();
+    if (p.off) {
+      var chk = await tempClient().auth.signInWithPassword({ email: (WHO.user || {}).auth_email, password: String(p.password || '') });
+      if (chk.error) throw appErr('AUTH', 'Password salah');
+      var fl = await client().auth.mfa.listFactors(), vs = ((fl.data && fl.data.totp) || []).filter(function (f) { return f.status === 'verified'; });
+      for (var i = 0; i < vs.length; i++) { var u = await client().auth.mfa.unenroll({ factorId: vs[i].id }); if (u.error) throw dbErr(u.error, 'mfa'); }
+      await client().auth.refreshSession().catch(function () { });
+      await who(true); return { ok: true, mfa_on: false };
+    }
+    var id = MFA_PENDING;
+    if (!id) { var f2 = await client().auth.mfa.listFactors(); id = (((f2.data && f2.data.all) || []).filter(function (f) { return f.status !== 'verified'; })[0] || {}).id; }
+    if (!id) throw appErr('VALID', 'Mulai lagi dari tombol "Aktifkan MFA"');
+    var cv = await client().auth.mfa.challengeAndVerify({ factorId: id, code: String(p.otp || '').trim() });
+    if (cv.error) throw appErr('AUTH', 'Kode MFA salah. Pastikan jam HP tepat, lalu coba kode terbaru.');
+    MFA_PENDING = null; await who(true); return { ok: true, mfa_on: true };
+  }
+
+  /* ------------------------------------------------------------ PWA: pasang di HP & buka offline */
+  (function pwa() {
+    if (!('serviceWorker' in navigator) || location.protocol === 'file:') return;
+    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js?v=' + BUILD).catch(function () { }); });
+    var deferred = null;
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault(); deferred = e;
+      if (document.getElementById('palmInstall')) return;
+      var b = document.createElement('button'); b.id = 'palmInstall'; b.type = 'button'; b.textContent = '\u2B07 Pasang aplikasi';
+      b.style.cssText = 'position:fixed;right:14px;bottom:78px;z-index:2500;border:0;border-radius:22px;padding:10px 16px;background:#0f6b4b;color:#fff;font-weight:700;box-shadow:0 6px 18px rgba(0,0,0,.25);cursor:pointer';
+      b.onclick = function () { b.remove(); if (deferred) { deferred.prompt(); deferred = null; } };
+      document.body.appendChild(b); setTimeout(function () { if (b.parentNode) b.remove(); }, 60000);
+    });
+  })();
+
   /* ------------------------------------------------------------ aksi khusus */
   function pubCache() { try { return JSON.parse(localStorage.getItem('palm_pub') || 'null'); } catch (e) { return null; } }
   async function publicInfo() {
@@ -437,6 +487,14 @@ var PalmSupa = (function () {
       if (/invalid login|invalid credentials/i.test(m)) throw appErr('AUTH', 'Email atau password salah (pakai password Platform Inti).');
       if (/email not confirmed/i.test(m)) throw appErr('AUTH', 'Email belum dikonfirmasi. Buka tautan konfirmasi di kotak masuk email Anda.');
       throw dbErr(r.error, 'login');
+    }
+    var lv = await client().auth.mfa.getAuthenticatorAssuranceLevel();
+    if (lv.data && lv.data.nextLevel === 'aal2' && lv.data.currentLevel !== 'aal2') {
+      if (!p.otp) return { mfa_required: true };
+      var fl = await client().auth.mfa.listFactors(), fac = ((fl.data && fl.data.totp) || []).filter(function (f) { return f.status === 'verified'; })[0];
+      if (!fac) throw appErr('AUTH', 'Faktor MFA tidak ditemukan. Hubungi admin.');
+      var cv = await client().auth.mfa.challengeAndVerify({ factorId: fac.id, code: String(p.otp).trim() });
+      if (cv.error) throw appErr('AUTH', 'Kode MFA salah atau kedaluwarsa');
     }
     OUT = false; clearData(); await who(true);
     var boot = await bootMe(p.device);
@@ -469,7 +527,8 @@ var PalmSupa = (function () {
     if (action === 'login') return login(payload || {});
     if (action === 'logout') { OUT = true; clearData(); try { await client().auth.signOut(); } catch (e) { } return { ok: true }; }
     if (action === 'me') { await who(true); return bootMe(device); }
-    if (LATER[action]) throw appErr('STAGE', 'MFA edisi Supabase belum tersedia; login dilindungi password Platform Inti. Direncanakan di Tahap 3.');
+    if (action === 'mfaSetup') return mfaSetup();
+    if (action === 'mfaEnable') return mfaEnable(payload || {});
     if (action === 'profile') return profile(payload || {});
     if (action === 'changePw') return changePw(payload || {});
     if (action === 'userSave') return userSave(payload || {});
