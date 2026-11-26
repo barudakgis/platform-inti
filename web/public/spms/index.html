@@ -110,13 +110,15 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}.tbl th{position:st
 .toast.ok{border-left:4px solid #4cc27a}.toast.bad{border-left:4px solid #ff6b5b}.toast.warn{border-left:4px solid #f0b429}
 /* lightbox */
 #lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:95;touch-action:none}.lb-stage{position:absolute;inset:0;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.gal figure{position:relative}.gal .med-ed{position:absolute;top:4px;right:4px;background:rgba(255,255,255,.92);border-radius:8px;min-height:30px;padding:3px 6px;box-shadow:0 1px 4px rgba(0,0,0,.25)}
+.selbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--card);border:1px solid var(--pri2);border-radius:10px;padding:6px 10px;margin-bottom:8px;position:sticky;top:0;z-index:5}.selbar .btn{min-height:32px}input.selc{width:18px;height:18px;min-height:0;margin:0;cursor:pointer}.tbl tr.sel td{background:rgba(47,122,75,.10)}
 #lbImg{max-width:92vw;max-height:84vh;transform-origin:center;transition:transform .05s;user-select:none;-webkit-user-drag:none}
 .lb-bar{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);display:flex;gap:8px}.lb-bar button{width:46px;height:46px;border-radius:50%;border:0;background:rgba(255,255,255,.18);color:#fff;font-size:20px;cursor:pointer}
 /* map */
 #mapWrap{position:relative;height:calc(100vh - var(--hdr));isolation:isolate;z-index:0}@media (max-width:900px){#mapWrap{height:calc(100vh - var(--hdr) - 62px)}}
 #map{position:absolute;inset:0}
 .map-panel{position:absolute;z-index:500;background:var(--card);border:1px solid var(--bd);border-radius:14px;box-shadow:var(--sh);padding:10px}
-.map-tools{top:10px;right:10px;display:flex;flex-direction:column;gap:6px;padding:6px}
+.map-tools{top:10px;right:10px;display:flex;flex-direction:column;gap:6px;padding:6px;max-height:calc(100% - 20px - var(--sbh,0px));overflow-y:auto}
 .map-tools button{width:40px;height:40px;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--tx);cursor:pointer;display:flex;align-items:center;justify-content:center}
 .map-tools button.on{background:var(--pri);color:#fff;border-color:var(--pri)}
 .map-layers{top:10px;left:56px;max-width:min(320px,calc(100vw - 120px));max-height:calc(100% - 20px);overflow:auto;font-size:13px}
@@ -192,12 +194,12 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}.tbl th{position:st
   <div id="lightbox" class="hidden"><div class="lb-stage"><img id="lbImg" alt=""></div>
     <div class="lb-bar"><button onclick="UI.zoomBy(1.3)">＋</button><button onclick="UI.zoomBy(1/1.3)">－</button><button onclick="UI.zoomReset()">⟲</button><button onclick="UI.zoomClose()">✕</button></div></div>
 
-  <script src="config.js?v=3-2"></script>
-<script src="supabase.js?v=3-2"></script>
-<script src="engine.js?v=3-2"></script>
-<script src="supa-api.js?v=3-2"></script>
+  <script src="config.js?v=130-1"></script>
+<script src="supabase.js?v=130-1"></script>
+<script src="engine.js?v=130-1"></script>
+<script src="supa-api.js?v=130-1"></script>
 <script>if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(function () {});</script>
-<script>window.BOOT = {"version": "1.2.0 \u00b7 Supabase", "build": "3-2", "name": "KebunRakyat SPMS", "brand": {"title": "KebunRakyat SPMS", "subtitle": "Manajemen Perkebunan Rakyat"}};</script>
+<script>window.BOOT = {"version": "1.3.0 \u00b7 Supabase", "build": "130-1", "name": "KebunRakyat SPMS", "brand": {"title": "KebunRakyat SPMS", "subtitle": "Manajemen Perkebunan Rakyat"}};</script>
   <script>
 /* ===== JsCore: state, API, router (tombol Back), tema, login/logout ===== */
 'use strict';
@@ -217,6 +219,7 @@ function debounce(fn, ms) { var t; return function () { var a = arguments, me = 
 
 /* ---------- ikon SVG (digambar sendiri, tanpa lisensi pihak ketiga) ---------- */
 var IC = {
+  move: 'M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M12 22l-3-3M12 22l3-3M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3', zoom: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM21 21l-5-5M11 8v6M8 11h6',
   menu: 'M4 6h16M4 12h16M4 18h16', home: 'M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z', map: 'M9 4l-6 2v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14',
   gps: 'M12 2v3M12 19v3M2 12h3M19 12h3M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM12 11a1 1 0 1 0 0 2 1 1 0 0 0 0-2z', tree: 'M12 22v-6M12 2l6 8h-3l4 6H5l4-6H6z',
   farmer: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 4-6 8-6s8 2 8 6', farm: 'M3 21V10l9-6 9 6v11M8 21v-6h8v6', parcel: 'M4 5l7-2 9 4-2 12-11 2-3-8z',
@@ -654,8 +657,17 @@ var UI = {
       var opts = fd[2].indexOf('sel:') === 0 ? fd[2].slice(4).split('|').map(function (o) { return [o, o]; }) : fd[2].indexOf('ref:') === 0 ? orgFilter(Data.peek(fd[2].slice(4)) || []).map(function (r) { return [r.id, r.code || r.name]; }) : [];
       return '<select data-f="' + k + '" style="width:auto;min-width:130px"><option value="">' + esc(fd[1]) + ': semua</option>' + opts.map(function (o) { return '<option value="' + esc(o[0]) + '">' + esc(o[1]) + '</option>'; }).join('') + '</select>';
     }).join('');
-    el.innerHTML = '<div class="row" style="margin-bottom:10px"><input type="search" placeholder="Cari…" data-q style="max-width:260px">' + fsel + '<span class="sp"></span>' + (opt.toolbar || '') + '</div><div data-body></div><div class="pager" data-pg></div>';
-    var body = $('[data-body]', el), pg = $('[data-pg]', el);
+    el.innerHTML = '<div class="row" style="margin-bottom:10px"><input type="search" placeholder="Cari…" data-q style="max-width:260px">' + fsel + '<span class="sp"></span>' + (opt.toolbar || '') + '</div><div data-selbar class="selbar hidden"></div><div data-body></div><div class="pager" data-pg></div>';
+    var body = $('[data-body]', el), pg = $('[data-pg]', el), sb = $('[data-selbar]', el), sel = st.sel = {}, lastRows = [];
+    var cb = function (r) { return opt.select ? '<input type="checkbox" class="selc" data-sel="' + esc(r.id) + '"' + (sel[r.id] ? ' checked' : '') + ' title="Pilih">' : ''; };
+    var selBar = function () {
+      var ids = Object.keys(sel), n = ids.length; sb.classList.toggle('hidden', !n); if (!n) { sb.innerHTML = ''; return; }
+      sb.innerHTML = '<b>' + nf(n, 0) + ' dipilih</b>' + (lastRows.length > n ? '<button class="ghost sm" data-sall>Pilih semua hasil (' + nf(lastRows.length, 0) + ')</button>' : '') +
+        '<button class="ghost sm" data-snone>Batal pilih</button><span class="sp"></span>' + (opt.selActions || '');
+      var a = $('[data-sall]', sb); if (a) a.onclick = function () { lastRows.forEach(function (r) { sel[r.id] = r; }); draw(); };
+      $('[data-snone]', sb).onclick = function () { Object.keys(sel).forEach(function (k) { delete sel[k]; }); draw(); };
+      $$('[data-sa]', sb).forEach(function (b) { b.onclick = function () { opt.onSel && opt.onSel(b.dataset.sa, Object.keys(sel).map(function (k) { return sel[k]; })); }; });
+    };
     var draw = function () {
       var rows = (typeof opt.rows === 'function' ? opt.rows() : opt.rows) || [];
       var q = st.q.toLowerCase();
@@ -664,26 +676,30 @@ var UI = {
         if (!q) return true;
         return opt.cols.some(function (c) { return String(c[2] ? c[2](r[c[0]], r, true) : r[c[0]]).toLowerCase().indexOf(q) >= 0; });
       });
+      lastRows = rows; if (opt.select) { var live = {}; rows.forEach(function (r) { live[r.id] = r; }); Object.keys(sel).forEach(function (k) { if (!live[k]) delete sel[k]; else sel[k] = live[k]; }); }
       var total = rows.length, pages = Math.max(1, Math.ceil(total / st.per)); st.page = Math.min(st.page, pages - 1);
       var view = rows.slice(st.page * st.per, st.page * st.per + st.per);
       if (!total) body.innerHTML = '<div class="empty">' + ic('search', 32) + '<p>Belum ada data.</p></div>';
-      else if (mobile) body.innerHTML = '<div class="cards">' + view.map(function (r, i) {
+      else if (mobile) body.innerHTML = (opt.select ? '<label class="chk tiny" style="margin:0 0 6px"><input type="checkbox" class="selc" data-selpage' + (view.length && view.every(function (r) { return sel[r.id]; }) ? ' checked' : '') + '> Pilih semua di halaman ini</label>' : '') + '<div class="cards">' + view.map(function (r, i) {
         var c0 = opt.cols[0], rest = opt.cols.slice(1, 5);
-        return '<div class="it" data-i="' + i + '"><div class="row"><span class="t sp">' + (c0[2] ? c0[2](r[c0[0]], r) : esc(r[c0[0]])) + '</span>' + (opt.actions ? opt.actions(r) : '') + '</div><div class="m">' +
+        return '<div class="it" data-i="' + i + '"><div class="row">' + cb(r) + '<span class="t sp">' + (c0[2] ? c0[2](r[c0[0]], r) : esc(r[c0[0]])) + '</span>' + (opt.actions ? opt.actions(r) : '') + '</div><div class="m">' +
           rest.map(function (c) { return esc(c[1]) + ': ' + (c[2] ? c[2](r[c[0]], r) : esc(r[c[0]])); }).join(' · ') + '</div></div>';
       }).join('') + '</div>';
-      else body.innerHTML = '<div class="tbl-wrap"><table class="tbl"><thead><tr>' + opt.cols.map(function (c) { return '<th class="' + (c[3] || '') + '">' + esc(c[1]) + '</th>'; }).join('') + (opt.actions ? '<th></th>' : '') + '</tr></thead><tbody>' +
-        view.map(function (r, i) { return '<tr data-i="' + i + '">' + opt.cols.map(function (c) { return '<td class="' + (c[3] || '') + '">' + (c[2] ? c[2](r[c[0]], r) : esc(r[c[0]])) + '</td>'; }).join('') + (opt.actions ? '<td style="white-space:nowrap">' + opt.actions(r) + '</td>' : '') + '</tr>'; }).join('') + '</tbody></table></div>';
+      else body.innerHTML = '<div class="tbl-wrap"><table class="tbl"><thead><tr>' + (opt.select ? '<th style="width:34px"><input type="checkbox" class="selc" data-selpage title="Pilih semua di halaman ini"' + (view.length && view.every(function (r) { return sel[r.id]; }) ? ' checked' : '') + '></th>' : '') + opt.cols.map(function (c) { return '<th class="' + (c[3] || '') + '">' + esc(c[1]) + '</th>'; }).join('') + (opt.actions ? '<th></th>' : '') + '</tr></thead><tbody>' +
+        view.map(function (r, i) { return '<tr data-i="' + i + '"' + (sel[r.id] ? ' class="sel"' : '') + '>' + (opt.select ? '<td>' + cb(r) + '</td>' : '') + opt.cols.map(function (c) { return '<td class="' + (c[3] || '') + '">' + (c[2] ? c[2](r[c[0]], r) : esc(r[c[0]])) + '</td>'; }).join('') + (opt.actions ? '<td style="white-space:nowrap">' + opt.actions(r) + '</td>' : '') + '</tr>'; }).join('') + '</tbody></table></div>';
       pg.innerHTML = '<span class="muted tiny">' + nf(total, 0) + ' data</span>' + (pages > 1 ? '<button class="ghost sm" data-p="-1">‹</button><span class="tiny">' + (st.page + 1) + '/' + pages + '</span><button class="ghost sm" data-p="1">›</button>' : '');
       $$('[data-p]', pg).forEach(function (b) { b.onclick = function () { st.page += Number(b.dataset.p); draw(); }; });
       $$('[data-i]', body).forEach(function (tr) { var r = view[Number(tr.dataset.i)];
         $$('[data-act]', tr).forEach(function (b) { b.onclick = function (e) { e.stopPropagation(); opt.onAction && opt.onAction(b.dataset.act, r); }; });
         if (opt.onRow) tr.style.cursor = 'pointer', tr.onclick = function () { opt.onRow(r); }; });
+      $$('[data-sel]', body).forEach(function (c) { c.onclick = function (e) { e.stopPropagation(); var r = lastRows.filter(function (x) { return String(x.id) === c.dataset.sel; })[0]; if (!r) return; if (c.checked) sel[r.id] = r; else delete sel[r.id]; var tr = c.closest('tr'); if (tr) tr.classList.toggle('sel', c.checked); selBar(); }; });
+      var sp = $('[data-selpage]', body); if (sp) sp.onclick = function (e) { e.stopPropagation(); view.forEach(function (r) { if (sp.checked) sel[r.id] = r; else delete sel[r.id]; }); draw(); };
+      if (opt.select) selBar();
     };
     $('[data-q]', el).addEventListener('input', debounce(function () { st.q = this.value; st.page = 0; draw(); }, 180));
     $$('[data-f]', el).forEach(function (s2) { s2.onchange = function () { st.f[s2.dataset.f] = s2.value; st.page = 0; draw(); }; });
     draw();
-    return { redraw: draw };
+    return { redraw: draw, selected: function () { return Object.keys(sel).map(function (k) { return sel[k]; }); }, clearSel: function () { Object.keys(sel).forEach(function (k) { delete sel[k]; }); draw(); } };
   },
   skeleton: function (n) { var s = ''; for (var i = 0; i < (n || 6); i++) s += '<div class="skel" style="width:' + (60 + Math.random() * 40) + '%"></div>'; return '<div class="card">' + s + '</div>'; },
   pill: function (v) {
@@ -926,14 +942,34 @@ Router.reg('trees', { perm: 'tree', render: function (el, p) {
   Promise.all([Data.list('Bidang'), Data.list('Komoditas'), Data.list('Varietas'), Data.list('Pohon')]).then(function () {
     tbl = UI.table(holder, { ent: 'Pohon', rows: cur, filters: ['parcel_id', 'status', 'health', 'productivity', 'commodity_id'],
       cols: [['code', 'ID Pohon'], refCol('parcel_id', 'Bidang', 'Bidang'), refCol('commodity_id', 'Komoditas', 'Komoditas'), ['row_no', 'Baris'], ['tree_no', 'No.'], ['planting_date', 'Umur', function (v) { return v ? nf((Date.now() - new Date(v)) / 31557600000, 1) + ' th' : '-'; }], ['health', 'Kesehatan', UI.pill], ['productivity', 'Produktivitas', UI.pill], ['status', 'Status', UI.pill]],
-      actions: function (r) { return '<button class="ghost sm" data-act="view">' + ic('eye') + '</button>' + (can('tree', 'U') ? '<button class="ghost sm" data-act="edit">' + ic('edit') + '</button>' : ''); },
+      actions: function (r) { return '<button class="ghost sm" data-act="view">' + ic('eye') + '</button>' + (can('tree', 'U') ? '<button class="ghost sm" data-act="edit">' + ic('edit') + '</button>' : '') + (can('tree', 'D') ? '<button class="ghost sm" data-act="del" title="Hapus">' + ic('trash') + '</button>' : ''); },
       onRow: function (r) { Views.treeDetail(r.id); },
-      onAction: function (a, r) { if (a === 'view') Views.treeDetail(r.id); if (a === 'edit') UI.form('Pohon', r).then(function (x) { if (x) reload(); }); } });
+      select: can('tree', 'D') || can('tree', 'U'),
+      selActions: (can('tree', 'U') ? '<button class="btn sm" data-sa="move">' + ic('map') + ' Geser di peta</button>' : '') + (can('tree', 'D') ? '<button class="btn sm danger" data-sa="del">' + ic('trash') + ' Hapus terpilih</button>' : ''),
+      onSel: function (a, rows) {
+        if (a === 'del') Views.deleteTrees(rows, function () { tbl.clearSel(); reload(); });
+        if (a === 'move') { var ok = rows.filter(function (r) { return r.lat && r.lng; }); if (!ok.length) return UI.toast('Pohon terpilih belum punya koordinat.', 'warn');
+          if (ok.length < rows.length) UI.toast((rows.length - ok.length) + ' pohon tanpa koordinat dilewati.', 'warn'); Router.go('map', { move: ok.map(function (r) { return r.id; }) }); }
+      },
+      onAction: function (a, r) { if (a === 'view') Views.treeDetail(r.id); if (a === 'edit') UI.form('Pohon', r).then(function (x) { if (x) reload(); }); if (a === 'del') Views.deleteTrees([r], reload); } });
   });
   var add = $('[data-add]', el); if (add) add.onclick = function () { Views.treeForm(null, { parcel_id: p.parcel }).then(function (x) { if (x) reload(); }); };
   $('[data-lbl]', el).onclick = function () { Views.qrLabels(tbl ? cur() : []); };
   var imp = $('[data-imp]', el); if (imp) imp.onclick = function () { DataIO.menu('Pohon', cur, reload); };
 } });
+/** Hapus satu / banyak pohon sekaligus (tandai terhapus; riwayat & foto tetap tersimpan untuk audit). */
+Views.deleteTrees = function (rows, done) {
+  var n = rows.length, names = rows.slice(0, 5).map(function (r) { return r.code; }).join(', ') + (n > 5 ? ', …' : '');
+  UI.confirm('Hapus ' + nf(n, 0) + ' pohon (' + esc(names) + ')? Data ditandai terhapus; riwayat tetap tersimpan untuk audit.', 'Hapus ' + nf(n, 0) + ' pohon', true).then(function (ok) {
+    if (!ok) return;
+    var ids = rows.map(function (r) { return r.id; }), parts = [], i, tot = { removed: 0, skipped: 0 };
+    for (i = 0; i < ids.length; i += 1000) parts.push(ids.slice(i, i + 1000));
+    UI.toast('Menghapus ' + nf(n, 0) + ' pohon…', 'ok');
+    parts.reduce(function (p, ch) { return p.then(function () { return api('bulkRemove', { ent: 'Pohon', ids: ch }).then(function (r) { tot.removed += r.removed; tot.skipped += r.skipped; }); }); }, Promise.resolve())
+      .then(function () { Data.invalidate('Pohon'); delete S.cache._gis; UI.toast(nf(tot.removed, 0) + ' pohon dihapus' + (tot.skipped ? ', ' + tot.skipped + ' dilewati' : '') + '.', 'ok'); done && done(); })
+      .catch(function () { Data.invalidate('Pohon'); done && done(); });
+  });
+};
 Views.treeForm = function (row, defaults) {
   return UI.form('Pohon', row, { defaults: Object.assign({ status: 'Aktif', health: 'Belum Diperiksa' }, defaults || {}), after: function (el) {
     var b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm'; b.innerHTML = ic('locate') + ' Ambil koordinat GPS';
@@ -960,10 +996,11 @@ Views.treeDetail = function (id) {
       (t.replaced_by ? '<div class="pop-r"><span>Diganti oleh</span><b>' + esc(t.replaced_by) + '</b></div>' : '') + (h.previous.length ? '<div class="pop-r"><span>Menggantikan</span><b>' + h.previous.map(function (x) { return esc(x.code); }).join(', ') + '</b></div>' : '') +
       '<div class="row" style="margin-top:10px">' + (can('tree', 'U') ? '<button class="btn sm" data-a="edit">' + ic('edit') + ' Ubah</button><button class="btn sm" data-a="obs">' + ic('eye') + ' Observasi</button>' : '') + (can('media', 'C') ? '<button class="btn sm" data-a="photo">' + ic('photo') + ' Foto</button>' : '') +
       (can('ai', 'R') ? '<button class="btn sm" data-a="ai">' + ic('ai') + ' Analisis foto AI</button>' : '') + (t.lat ? '<button class="btn sm" data-a="map">' + ic('map') + ' Peta</button>' : '') + (can('tree', 'C') && t.status !== 'Diganti' ? '<button class="btn sm" data-a="rep">' + ic('sync') + ' Ganti pohon</button>' : '') + '</div></div>' +
-      '<div><h3>Galeri (' + h.media.length + ')</h3><div class="gal">' + (h.media.length ? h.media.map(function (x) { return '<figure data-mid="' + x.id + '"><img src="' + (x.thumb || '') + '" alt=""><figcaption>' + esc(x.category) + ' · ' + fdate(x.captured_at) + '</figcaption></figure>'; }).join('') : '<p class="muted">Belum ada foto.</p>') + '</div>' +
+      '<div><h3>Galeri (' + h.media.length + ')</h3><div class="gal">' + (h.media.length ? h.media.map(function (x) { return '<figure data-mid="' + x.id + '"><img src="' + (x.thumb || '') + '" alt="">' + Media.editBtn(x) + '<figcaption>' + esc(x.category) + ' · ' + fdate(x.captured_at) + (x.description ? '<br>' + esc(x.description) : '') + '</figcaption></figure>'; }).join('') : '<p class="muted">Belum ada foto.</p>') + '</div>' +
       '<h3 style="margin-top:12px">Linimasa siklus hidup</h3><div class="timeline">' + (ev.length ? ev.slice(0, 60).map(function (e) { return '<div class="tl"><b>' + esc(e.t) + '</b> <span class="muted tiny">' + fdate(e.d) + '</span><div class="tiny">' + esc(e.x) + '</div></div>'; }).join('') : '<p class="muted">Belum ada riwayat.</p>') + '</div></div></div>';
     QR.render($('#qrBox', m.el), 'SPMS:' + t.id + ':' + t.code, 96);
     $$('[data-mid]', m.el).forEach(function (f) { f.onclick = function () { Media.open(f.dataset.mid, f.querySelector('img').src); }; });
+    Media.wireEdit(m.el, h.media, function (act) { if (act === 'delete') { var hd = m.el.querySelector('.gal') && m.el.querySelector('.gal').previousElementSibling; var n = $$('[data-mid]', m.el).length; if (hd) hd.textContent = 'Galeri (' + n + ')'; } });
     var act = function (a) {
       if (a === 'edit') { m.close(); UI.form('Pohon', t).then(function () { Data.invalidate('Pohon'); }); }
       if (a === 'photo') Media.capture('Pohon', t.id, 'Keseluruhan', function () { m.close(); Views.treeDetail(t.id); });
@@ -1077,6 +1114,35 @@ var Media = {
       return api('uploadMedia', Object.assign({}, meta, { data: b64, mime: isImg ? 'image/jpeg' : file.type, name: file.name.replace(/\.\w+$/, '') + (isImg ? '.jpg' : ''), thumb: r[1], captured_at: new Date(file.lastModified || Date.now()).toISOString() }));
     });
   },
+  /** Tombol ✎ di pojok foto: ubah kategori/keterangan atau hapus (salah unggah). */
+  editBtn: function (x) {
+    var mine = x.created_by && S.boot.user && x.created_by === S.boot.user.id && (Date.now() - new Date(x.created_at).getTime()) < 864e5;
+    return can('media', 'U') || can('media', 'D') || mine ? '<button class="ghost sm med-ed" data-med="' + esc(x.id) + '" title="Ubah / hapus foto">' + ic('edit') + '</button>' : '';
+  },
+  /** Pasang tombol ✎; setelah diubah/dihapus, galeri diperbarui di tempat (tanpa menutup jendela). */
+  wireEdit: function (root, rows, done) {
+    $$('[data-med]', root).forEach(function (b) { b.onclick = function (e) { e.stopPropagation(); var x = rows.filter(function (r) { return r.id === b.dataset.med; })[0];
+      if (x) Media.edit(x, function (act, row) {
+        var fig = b.closest('figure');
+        if (act === 'delete' && fig) fig.remove();
+        if (act === 'update' && fig && row) { Object.assign(x, row); var fc = fig.querySelector('figcaption'); if (fc) fc.innerHTML = esc(row.category) + ' · ' + fdate(row.captured_at) + (row.description ? '<br>' + esc(row.description) : ''); }
+        done && done(act, row);
+      }); }; });
+  },
+  edit: function (x, done) {
+    var cats = S.boot.schema.Media.fields.filter(function (f) { return f[0] === 'category'; })[0][2].slice(4).split('|');
+    var mine = x.created_by && S.boot.user && x.created_by === S.boot.user.id && (Date.now() - new Date(x.created_at).getTime()) < 864e5;
+    var acts = [{ label: 'Tutup' }];
+    if (can('media', 'D') || mine) acts.push({ label: ic('trash') + ' Hapus foto', cls: 'danger', onClick: function (el, close) {
+      UI.confirm('Hapus foto ini? (misalnya salah unggah). Berkas asli tetap disimpan untuk audit, tetapi tidak tampil lagi.', 'Hapus', true).then(function (ok) {
+        if (ok) api('mediaRemove', { id: x.id }).then(function () { Data.invalidate('Media'); UI.toast('Foto dihapus.', 'ok'); close(); done && done('delete'); }); }); } });
+    if (can('media', 'U')) acts.push({ label: ic('check') + ' Simpan', cls: 'primary', onClick: function (el, close, btn) {
+      btn.disabled = true; api('mediaUpdate', { id: x.id, category: $('#meCat').value, description: $('#meDesc').value }).then(function (r) { Data.invalidate('Media'); UI.toast('Foto diperbarui.', 'ok'); close(); done && done('update', r.row); }).catch(function () { btn.disabled = false; }); } });
+    UI.modal('Ubah / hapus foto', '<div style="text-align:center"><img src="' + (x.thumb || '') + '" style="max-width:100%;max-height:220px;border-radius:10px"></div>' +
+      '<label>Kategori<select id="meCat"' + (can('media', 'U') ? '' : ' disabled') + '>' + cats.map(function (c) { return '<option' + (c === x.category ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select></label>' +
+      '<label>Keterangan<input id="meDesc" value="' + esc(x.description || '') + '"' + (can('media', 'U') ? '' : ' disabled') + '></label>' +
+      '<p class="tiny muted">Diunggah ' + fdate(x.captured_at || x.created_at) + '. ' + (can('media', 'D') ? '' : 'Anda dapat menghapus foto yang Anda unggah sendiri dalam 24 jam.') + '</p>', { actions: acts });
+  },
   open: function (id, thumb) {
     UI.zoom(thumb);
     api('getMedia', { id: id }, { silent: true }).then(function (r) { if (r.large) return window.open(r.url, '_blank'); if (/^image/.test(r.mime)) $('#lbImg').src = 'data:' + r.mime + ';base64,' + r.data; else { UI.zoomClose(); var a = document.createElement('a'); a.href = 'data:' + r.mime + ';base64,' + r.data; a.download = r.name; a.click(); } }).catch(function () {});
@@ -1086,8 +1152,9 @@ Router.reg('media', { perm: 'media', render: function (el) {
   el.innerHTML = vh('Dokumentasi Digital', '<button class="btn" id="mdX">' + ic('grid') + ' Excel (daftar)</button>') + '<div class="row" style="margin-bottom:10px"><select id="mdF" style="width:auto"><option value="">Semua objek</option><option>Pohon</option><option>Bidang</option><option>HamaPenyakit</option><option>Aktivitas</option><option>Petani</option></select></div><div id="mdG">' + UI.skeleton() + '</div>';
   var draw = function () {
     var f = $('#mdF').value, rows = orgFilter(Data.peek('Media') || []).filter(function (m) { return m.deleted != 1 && (!f || m.entity === f); }).sort(function (a, b) { return a.captured_at < b.captured_at ? 1 : -1; });
-    $('#mdG').innerHTML = rows.length ? '<div class="gal">' + rows.slice(0, 300).map(function (x) { return '<figure data-mid="' + x.id + '"><img src="' + (x.thumb || '') + '" loading="lazy"><figcaption>' + esc(x.entity) + ' · ' + esc(x.category) + '<br>' + fdate(x.captured_at) + '</figcaption></figure>'; }).join('') + '</div>' : '<div class="empty">Belum ada dokumentasi. Tambahkan dari halaman Pohon, Bidang, atau Aktivitas.</div>';
+    $('#mdG').innerHTML = rows.length ? '<div class="gal">' + rows.slice(0, 300).map(function (x) { return '<figure data-mid="' + x.id + '"><img src="' + (x.thumb || '') + '" loading="lazy">' + Media.editBtn(x) + '<figcaption>' + esc(x.entity) + ' · ' + esc(x.category) + '<br>' + fdate(x.captured_at) + '</figcaption></figure>'; }).join('') + '</div>' : '<div class="empty">Belum ada dokumentasi. Tambahkan dari halaman Pohon, Bidang, atau Aktivitas.</div>';
     $$('[data-mid]').forEach(function (fg) { fg.onclick = function () { Media.open(fg.dataset.mid, fg.querySelector('img').src); }; });
+    Media.wireEdit($('#mdG'), rows, function () { Data.list('Media', true); });
   };
   $('#mdF').onchange = draw;
   $('#mdX').onclick = function () { var f = $('#mdF').value; DataIO.exportXlsx('Media', orgFilter(Data.peek('Media') || []).filter(function (m) { return m.deleted != 1 && (!f || m.entity === f); }), 'Daftar_Dokumentasi'); };
@@ -1432,9 +1499,10 @@ MapV.init = function (p) {
   L.control.zoom({ position: 'bottomleft' }).addTo(map); L.control.scale({ imperial: false, position: 'bottomright' }).addTo(map);
   MapV.setBase(MapV.st.base);
   var tools = [['layers', 'Layer & legenda', function () { $('#mLay').classList.toggle('hidden'); }], ['locate', 'Posisi saya / ikuti GPS', function (b) { Track.toggleFollow(map, b); }],
-    ['search', 'Cari / perintah AI', MapV.search], ['ruler', 'Ukur jarak/luas', function (b) { MapV.toolMeasure(b); }]];
+    ['zoom', 'Zoom ke bidang / layer', MapV.zoomMenu], ['search', 'Cari / perintah AI', MapV.search], ['ruler', 'Ukur jarak/luas', function (b) { MapV.toolMeasure(b); }]];
   if (can('parcel', 'U') || can('survey', 'C')) tools.push(['parcel', 'Gambar batas bidang', function (b) { MapV.toolDraw(b); }]);
   if (can('tree', 'C')) tools.push(['tree', 'Tambah pohon (ketuk peta)', function (b) { MapV.toolTree(b); }], ['grid', 'Generator grid tanam', MapV.gridGen]);
+  if (can('tree', 'U')) tools.push(['move', 'Geser posisi pohon (cocokkan dengan foto udara)', function (b) { MapV.toolMove(b); }]);
   tools.push(['up', 'Impor SHP / GeoJSON / KML', GeoIO.importDialog], ['dl', 'Ekspor SHP / GeoJSON / KML / Excel', MapV.exportMenu], ['print', 'Cetak peta PDF', function () { MapPrint.open(); }]);
   $('#mTools').innerHTML = tools.map(function (t, i) { return '<button title="' + t[1] + '" data-t="' + i + '">' + ic(t[0]) + '</button>'; }).join('');
   $$('#mTools [data-t]').forEach(function (b) { b.onclick = function () { tools[Number(b.dataset.t)][2](b); }; });
@@ -1442,6 +1510,7 @@ MapV.init = function (p) {
   PMT.attach(map, 'map').then(MapV.panel);
   var draw = function (d) { MapV.data = d; MapV.drawLayers(); MapV.applyParams(p); };
   if (S.cache._gis) draw(S.cache._gis);
+  ['Petani', 'Kebun'].forEach(function (e) { if (can(e === 'Petani' ? 'farmer' : 'farm', 'R')) Data.list(e).catch(function () {}); });   // nama untuk info bidang
   Promise.all([Data.list('Komoditas'), api('gisLayers', {}, { silent: !!S.cache._gis })]).then(function (r) { S.cache._gis = r[1]; draw(r[1]); }).catch(function () {});
   setTimeout(function () { map.invalidateSize(); }, 150);
 };
@@ -1474,20 +1543,19 @@ MapV.drawLayers = function () {
     MapV.lyr.parcels = L.geoJSON({ type: 'FeatureCollection', features: feats }, {
       style: function (f) { var c = STY.parcel[f.properties.status] || '#7f8c8d', h = hl && hl.layer === 'parcels' && hset[f.properties.id]; return { color: h ? '#ff00ff' : c, weight: h ? 4 : 2, fillColor: c, fillOpacity: h ? .35 : .15 }; },
       onEachFeature: function (f, l) { var p = f.properties;
-        l.bindPopup('<div class="pop-t">' + esc(p.code) + ' ' + esc(p.name || '') + '</div><div class="pop-r"><span>Petani</span><b>' + esc(Data.label('Petani', p.farmer_id)) + '</b></div><div class="pop-r"><span>Luas</span><b>' + ha(p.area_m2) + '</b></div><div class="pop-r"><span>Komoditas</span><b>' + esc(Data.label('Komoditas', p.commodity_id)) + '</b></div>' +
-          '<div class="pop-r"><span>Pohon</span><b>' + d.trees.filter(function (t) { return t[7] === p.id; }).length + '</b></div><div class="pop-r"><span>Status</span>' + UI.pill(p.status) + '</div><div class="pop-r"><span>Metode</span><b>' + esc(p.method || '-') + '</b></div>' +
-          '<div class="row" style="margin-top:6px"><button class="btn sm" onclick="Router.go(\'trees\',{parcel:\'' + p.id + '\'})">Pohon</button>' + (can('survey', 'C') ? '<button class="btn sm" onclick="Router.go(\'survey\',{parcel:\'' + p.id + '\'})">Ukur ulang</button>' : '') + '</div>');
+        l.bindPopup(function () { return MapV.parcelTip(p); }, { maxWidth: 320, minWidth: 230 });
+        if (!MapV.st.labels) l.bindTooltip(esc(p.code) + (p.area_m2 ? ' · ' + ha(p.area_m2) : ''), { sticky: true, direction: 'top', className: 'tiny' });
         if (MapV.st.labels) l.bindTooltip(esc(p.code), { permanent: true, direction: 'center', className: 'tiny' }); }
     }).addTo(map);
   }
   if (MapV.st.trees && d.trees.length) {
-    var g = L.layerGroup(), mode = MapV.st.tmode, rnd = L.canvas({ padding: .3 }), parcelsOk = {}; feats.forEach(function (f) { parcelsOk[f.properties.id] = 1; });
+    var g = L.layerGroup(), mode = MapV.st.tmode, parcelsOk = {};   // satu kanvas untuk bidang & pohon: klik di dalam bidang tetap membuka info bidang feats.forEach(function (f) { parcelsOk[f.properties.id] = 1; });
     var useOrg = S.boot.scope === 'all' && S.orgId;
     d.trees.forEach(function (t) {
       if (useOrg && !parcelsOk[t[7]]) return;
       var h = hl && hl.layer === 'trees' && hset[t[0]];
-      L.circleMarker([t[2], t[3]], { renderer: rnd, radius: h ? 7 : 4.5, weight: h ? 3 : 1, color: h ? '#ff00ff' : '#fff', fillColor: treeColor(t, mode, d.fert || {}), fillOpacity: .95 })
-        .on('click', function () { L.popup().setLatLng([t[2], t[3]]).setContent('<div class="pop-t">' + esc(t[1]) + '</div><div class="pop-r"><span>Kesehatan</span>' + UI.pill(t[4]) + '</div><div class="pop-r"><span>Produktivitas</span>' + UI.pill(t[8]) + '</div><div class="pop-r"><span>Status</span>' + UI.pill(t[5]) + '</div><button class="btn sm block" onclick="Views.treeDetail(\'' + t[0] + '\')">Profil pohon</button>').openOn(map); })
+      L.circleMarker([t[2], t[3]], { radius: h ? 7 : 4.5, weight: h ? 3 : 1, color: h ? '#ff00ff' : '#fff', fillColor: treeColor(t, mode, d.fert || {}), fillOpacity: .95 })
+        .on('click', function (e) { if (MapV.tool && MapV.tool.name === 'move') { L.DomEvent.stop(e); return MapV.tool.toggle(t); } L.popup().setLatLng([t[2], t[3]]).setContent('<div class="pop-t">' + esc(t[1]) + '</div><div class="pop-r"><span>Kesehatan</span>' + UI.pill(t[4]) + '</div><div class="pop-r"><span>Produktivitas</span>' + UI.pill(t[8]) + '</div><div class="pop-r"><span>Status</span>' + UI.pill(t[5]) + '</div><button class="btn sm block" onclick="Views.treeDetail(\'' + t[0] + '\')">Profil pohon</button>' + (can('tree', 'U') ? '<button class="btn sm block" onclick="MapV.map.closePopup();MapV.toolMove(null,[\'' + t[0] + '\'])">' + ic('move') + ' Geser posisi</button>' : '') + '').openOn(map); })
         .addTo(g);
     });
     MapV.lyr.trees = g.addTo(map);
@@ -1504,6 +1572,8 @@ MapV.applyParams = function (p) {
   var b = null;
   if (p.focus) d.parcels.features.forEach(function (f) { if (f.properties.id === p.focus) b = L.geoJSON(f).getBounds(); });
   if (p.tree) d.trees.forEach(function (t) { if (t[0] === p.tree) { map.setView([t[2], t[3]], 19); } });
+  if (p.move && p.move.length) { MapV.toolMove(null, p.move); return; }
+  if (p.parcel) { MapV.zoomParcel(p.parcel, true); return; }
   if (MapV.hl && !b) { var pts = []; if (MapV.hl.layer === 'trees') d.trees.forEach(function (t) { if (MapV.hl.ids.indexOf(t[0]) >= 0) pts.push([t[2], t[3]]); });
     if (MapV.hl.layer === 'parcels') d.parcels.features.forEach(function (f) { if (MapV.hl.ids.indexOf(f.properties.id) >= 0) { var bb = L.geoJSON(f).getBounds(); pts.push(bb.getNorthWest(), bb.getSouthEast()); } });
     if (pts.length) b = L.latLngBounds(pts); }
@@ -1557,6 +1627,118 @@ MapV.toolTree = function (btn) {
     Views.treeForm(null, { lat: Math.round(pt[1] * 1e7) / 1e7, lng: Math.round(pt[0] * 1e7) / 1e7, parcel_id: par ? par.id : '' }).then(function (x) { if (x) MapV.reload(); });
   };
   MapV.map.on('click', click); MapV.tool = { name: 'tree', stop: function () { MapV.map.off('click', click); } };
+};
+/* ---------- Info bidang (maptip) & zoom ---------- */
+MapV.parcelTip = function (p) {
+  var d = MapV.data, tr = d.trees.filter(function (t) { return t[7] === p.id; }), act = tr.filter(function (t) { return t[5] === 'Aktif'; }).length;
+  var row = function (k, v) { return '<div class="pop-r"><span>' + k + '</span><b>' + v + '</b></div>'; };
+  return '<div class="pop-t">' + esc(p.code) + (p.name ? ' · ' + esc(p.name) : '') + '</div>' +
+    row('Petani', esc(Data.label('Petani', p.farmer_id) || '-')) + row('Kebun', esc(Data.label('Kebun', p.farm_id) || '-')) + row('Komoditas', esc(Data.label('Komoditas', p.commodity_id) || '-')) +
+    row('Luas', ha(p.area_m2) + ' <span class="muted">(' + nf(p.area_m2, 0) + ' m²)</span>') + (p.perimeter_m ? row('Keliling', nf(p.perimeter_m, 1) + ' m') : '') +
+    row('Pohon', nf(tr.length, 0) + (tr.length ? ' <span class="muted">(aktif ' + nf(act, 0) + (p.area_m2 ? ' · ' + nf(act / (p.area_m2 / 1e4), 0) + '/ha' : '') + ')</span>' : '')) +
+    '<div class="pop-r"><span>Status</span>' + UI.pill(p.status) + '</div>' + row('Metode ukur', esc(p.method || '-') + (p.accuracy_m ? ' ±' + nf(p.accuracy_m, 1) + ' m' : '')) +
+    (p.land_relation ? row('Relasi lahan', esc(p.land_relation)) : '') + (p.version ? row('Versi batas', esc(p.version)) : '') +
+    '<div class="row" style="margin-top:6px;gap:4px;flex-wrap:wrap"><button class="btn sm" onclick="MapV.zoomParcel(\'' + p.id + '\')">' + ic('zoom') + ' Zoom</button>' +
+    '<button class="btn sm" onclick="Router.go(\'trees\',{parcel:\'' + p.id + '\'})">' + ic('tree') + ' Pohon</button>' +
+    (can('parcel', 'U') ? '<button class="btn sm" onclick="MapV.editParcel(\'' + p.id + '\')">' + ic('edit') + ' Ubah</button>' : '') +
+    (can('survey', 'C') ? '<button class="btn sm" onclick="Router.go(\'survey\',{parcel:\'' + p.id + '\'})">' + ic('gps') + ' Ukur ulang</button>' : '') +
+    (MapV.tool && MapV.tool.name === 'move' ? '<button class="btn sm primary" onclick="MapV.map.closePopup();MapV.tool.addParcel(\'' + p.id + '\')">' + ic('move') + ' Pilih pohon bidang ini</button>' : '') + '</div>';
+};
+MapV.editParcel = function (id) { MapV.map.closePopup(); Data.list('Bidang').then(function (L0) { var r = L0.filter(function (x) { return x.id === id; })[0]; if (r) UI.form('Bidang', r).then(function (x) { if (x) MapV.reload(); }); }); };
+MapV.zoomParcel = function (id, open) {
+  var map = MapV.map, lyr = null;
+  if (MapV.lyr.parcels) MapV.lyr.parcels.eachLayer(function (l) { if (l.feature && l.feature.properties.id === id) lyr = l; });
+  var f = lyr ? lyr.feature : (MapV.data.parcels.features.filter(function (x) { return x.properties.id === id; })[0]);
+  if (!f) return UI.toast('Bidang belum punya batas di peta.', 'warn');
+  map.fitBounds(L.geoJSON(f).getBounds(), { padding: [40, 40], maxZoom: 20 });
+  if (open && lyr) setTimeout(function () { lyr.openPopup(L.geoJSON(f).getBounds().getCenter()); }, 350);
+};
+MapV.zoomTo = function (what) {
+  var map = MapV.map, d = MapV.data, pts = [], b = null;
+  if (what === 'parcels' && MapV.lyr.parcels) b = MapV.lyr.parcels.getBounds();
+  if (what === 'trees') d.trees.forEach(function (t) { pts.push([t[2], t[3]]); });
+  if (what === 'pests') d.pests.forEach(function (x) { pts.push([x[2], x[3]]); });
+  if (what === 'hl' && MapV.hl) return MapV.applyParams({});
+  if (what === 'me') return Geo.once(8000).then(function (pt) { map.setView([pt.lat, pt.lng], 19); }).catch(function (e) { UI.toast(e.message, 'bad'); });
+  if (pts.length) b = L.latLngBounds(pts);
+  if (b && b.isValid()) map.fitBounds(b, { padding: [30, 30], maxZoom: 20 }); else UI.toast('Layer ini belum punya data di peta.', 'warn');
+};
+MapV.zoomMenu = function () {
+  var d = MapV.data || { parcels: { features: [] }, trees: [], pests: [] }, feats = orgFilterGeo(d.parcels.features).slice().sort(function (a, b) { return String(a.properties.code).localeCompare(String(b.properties.code)); });
+  var pm = (window.PMT && PMT.all ? PMT.all() : []).filter(function (l) { return l.bounds; });
+  var item = function (k, label, n) { return '<button class="btn sm block" style="justify-content:flex-start;margin-top:6px" data-z="' + k + '">' + ic('zoom') + ' ' + label + (n !== undefined ? ' <span class="muted">(' + nf(n, 0) + ')</span>' : '') + '</button>'; };
+  var m = UI.modal('Zoom ke…', item('parcels', 'Semua batas bidang', feats.length) + item('trees', 'Semua titik pohon', d.trees.length) + item('pests', 'Kasus hama/penyakit', d.pests.length) +
+    (MapV.hl ? item('hl', 'Hasil sorotan', MapV.hl.ids.length) : '') + item('me', 'Posisi saya (GPS)') +
+    pm.map(function (l) { return '<button class="btn sm block" style="justify-content:flex-start;margin-top:6px" data-zp="' + esc(l.id) + '">' + ic('layers') + ' Foto udara: ' + esc(l.name) + '</button>'; }).join('') +
+    '<label style="margin-top:12px">Bidang lahan</label><input id="zbQ" type="search" placeholder="Ketik kode / nama / petani…"><div id="zbL" style="max-height:42vh;overflow:auto;margin-top:6px"></div>', { actions: [{ label: 'Tutup' }] });
+  var list = function () {
+    var q = $('#zbQ', m.el).value.trim().toLowerCase();
+    var rows = feats.filter(function (f) { var p = f.properties; return !q || (p.code + ' ' + (p.name || '') + ' ' + Data.label('Petani', p.farmer_id)).toLowerCase().indexOf(q) >= 0; }).slice(0, 200);
+    $('#zbL', m.el).innerHTML = rows.length ? rows.map(function (f) { var p = f.properties; return '<div class="q" style="cursor:pointer;padding:8px 4px;border-bottom:1px solid var(--bd)" data-zb="' + esc(p.id) + '"><b>' + esc(p.code) + '</b> ' + esc(p.name || '') + ' <span class="muted tiny">' + ha(p.area_m2) + ' · ' + esc(Data.label('Petani', p.farmer_id) || '') + '</span></div>'; }).join('') : '<p class="muted tiny">Tidak ada bidang.</p>';
+    $$('[data-zb]', m.el).forEach(function (x) { x.onclick = function () { m.close(); MapV.zoomParcel(x.dataset.zb, true); }; });
+  };
+  $('#zbQ', m.el).oninput = list; list();
+  $$('[data-z]', m.el).forEach(function (b) { b.onclick = function () { m.close(); MapV.zoomTo(b.dataset.z); }; });
+  $$('[data-zp]', m.el).forEach(function (b) { b.onclick = function () { m.close(); PMT.zoomTo('map', b.dataset.zp); }; });
+};
+
+/* ---------- Geser posisi pohon (satu / banyak sekaligus), mis. dicocokkan dengan foto udara drone ---------- */
+MapV.toolMove = function (btn, ids) {
+  if (MapV.tool && MapV.tool.name === 'move') { if (!ids) return MapV.stopTool(); MapV.stopTool(); }
+  MapV.stopTool(); btn = btn || $$('#mTools button').filter(function (b) { return b.title.indexOf('Geser') === 0; })[0]; if (btn) btn.classList.add('on');
+  var map = MapV.map, d = MapV.data, sel = {}, off = { lat: 0, lng: 0 }, grp = L.layerGroup().addTo(map), handle = null, base = null;
+  var M = 111320, lat0 = function () { var k = Object.keys(sel)[0]; return k ? sel[k].lat : 0; };
+  var bar = document.createElement('div'); bar.className = 'map-panel survey-bar';
+  bar.innerHTML = '<div class="tiny" id="mvInfo"></div><div class="row" style="gap:4px;flex-wrap:wrap;margin-top:6px">' +
+    '<select id="mvStep" style="width:auto;min-height:32px" title="Langkah geser"><option value="0.2">0,2 m</option><option value="0.5" selected>0,5 m</option><option value="1">1 m</option><option value="2">2 m</option><option value="5">5 m</option></select>' +
+    '<button class="btn sm" data-nd="n" title="Utara">↑</button><button class="btn sm" data-nd="s" title="Selatan">↓</button><button class="btn sm" data-nd="w" title="Barat">←</button><button class="btn sm" data-nd="e" title="Timur">→</button>' +
+    '<select id="mvPar" style="width:auto;min-height:32px;max-width:170px"><option value="">+ Pilih semua di bidang…</option>' + orgFilterGeo(d.parcels.features).map(function (f) { return '<option value="' + esc(f.properties.id) + '">' + esc(f.properties.code) + '</option>'; }).join('') + '</select>' +
+    '<button class="btn sm" id="mvClr">Kosongkan</button><button class="btn sm" id="mvRst">Kembalikan</button><span class="sp"></span><button class="btn sm" id="mvX">Batal</button><button class="btn sm primary" id="mvS">' + ic('check') + ' Simpan</button></div>';
+  $('#mapWrap').appendChild(bar); $('#mapWrap').style.setProperty('--sbh', (bar.offsetHeight + 14) + 'px');
+  var dist = function () { var la = lat0(); return Math.hypot(off.lat * M, off.lng * M * Math.cos(la * Math.PI / 180)); };
+  var draw = function () {
+    grp.clearLayers(); var ks = Object.keys(sel), cLat = 0, cLng = 0;
+    ks.forEach(function (k) { var s0 = sel[k], la = s0.lat + off.lat, ln = s0.lng + off.lng; cLat += la; cLng += ln;
+      if (off.lat || off.lng) L.polyline([[s0.lat, s0.lng], [la, ln]], { color: '#ff00ff', weight: 1, dashArray: '3 3', interactive: false }).addTo(grp);
+      L.circleMarker([la, ln], { radius: 6, color: '#ff00ff', weight: 2, fillColor: '#fff', fillOpacity: .9 }).on('click', function (e) { L.DomEvent.stop(e); toggle([k, s0.code, s0.lat, s0.lng]); }).addTo(grp); });
+    if (ks.length) {
+      var c = [cLat / ks.length, cLng / ks.length];
+      if (!handle) handle = L.marker(c, { draggable: true, zIndexOffset: 1000, icon: L.divIcon({ className: '', html: '<div style="width:34px;height:34px;border-radius:50%;background:#ff00ff;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;color:#fff">' + ic('move', 20) + '</div>', iconSize: [34, 34], iconAnchor: [17, 17] }) })
+        .on('dragstart', function () { base = { lat: handle.getLatLng().lat - off.lat, lng: handle.getLatLng().lng - off.lng }; })
+        .on('drag', function () { var ll = handle.getLatLng(); off = { lat: ll.lat - base.lat, lng: ll.lng - base.lng }; drawLite(); })
+        .on('dragend', function () { draw(); }).addTo(map);
+      else handle.setLatLng(c);
+    } else if (handle) { map.removeLayer(handle); handle = null; }
+    $('#mvInfo').innerHTML = ks.length ? '<b>' + nf(ks.length, 0) + ' pohon dipilih</b> · geser <b>' + nf(dist(), 2) + ' m</b>' + (dist() ? ' (U ' + nf(off.lat * M, 2) + ' m, T ' + nf(off.lng * M * Math.cos(lat0() * Math.PI / 180), 2) + ' m)' : '') + '. Seret tombol ungu ✥, atau pakai panah.' :
+      '<b>Geser posisi pohon.</b> Ketuk titik pohon untuk memilih (bisa banyak), atau pilih semua pohon di satu bidang. Lalu seret tombol ungu ✥ ke posisi yang benar (mis. di atas foto udara).';
+  };
+  var drawLite = function () { var i = 0, ks = Object.keys(sel); grp.eachLayer(function (l) { if (l instanceof L.CircleMarker) { var s0 = sel[ks[i++]]; if (s0) l.setLatLng([s0.lat + off.lat, s0.lng + off.lng]); } });
+    $('#mvInfo').innerHTML = '<b>' + nf(ks.length, 0) + ' pohon</b> · geser <b>' + nf(dist(), 2) + ' m</b>'; };
+  var toggle = function (t) { if (sel[t[0]]) delete sel[t[0]]; else sel[t[0]] = { code: t[1], lat: Number(t[2]), lng: Number(t[3]) }; draw(); };
+  var addParcel = function (pid) { var n = 0; d.trees.forEach(function (t) { if (t[7] === pid && !sel[t[0]]) { sel[t[0]] = { code: t[1], lat: Number(t[2]), lng: Number(t[3]) }; n++; } }); UI.toast(n + ' pohon ditambahkan ke pilihan.', 'ok'); draw(); };
+  $$('[data-nd]', bar).forEach(function (b) { b.onclick = function () { var m = Number($('#mvStep').value), la = lat0(), k = b.dataset.nd;
+    if (k === 'n') off.lat += m / M; if (k === 's') off.lat -= m / M; if (k === 'e') off.lng += m / (M * Math.cos(la * Math.PI / 180)); if (k === 'w') off.lng -= m / (M * Math.cos(la * Math.PI / 180)); draw(); }; });
+  $('#mvPar').onchange = function () { if (this.value) addParcel(this.value); this.value = ''; };
+  $('#mvClr').onclick = function () { sel = {}; off = { lat: 0, lng: 0 }; draw(); };
+  $('#mvRst').onclick = function () { off = { lat: 0, lng: 0 }; draw(); };
+  $('#mvX').onclick = function () { MapV.stopTool(); };
+  $('#mvS').onclick = function () {
+    var ks = Object.keys(sel); if (!ks.length) return UI.toast('Pilih pohon dulu.', 'warn'); if (!off.lat && !off.lng) return UI.toast('Posisi belum digeser.', 'warn');
+    UI.prompt('Simpan posisi baru ' + nf(ks.length, 0) + ' pohon (geser ' + nf(dist(), 2) + ' m)', 'Alasan (mis. disesuaikan dengan foto udara drone Nov 2026)', 'Disesuaikan dengan foto udara').then(function (reason) {
+      if (reason === null) return;
+      var moves = ks.map(function (k) { return { id: k, lat: Math.round((sel[k].lat + off.lat) * 1e7) / 1e7, lng: Math.round((sel[k].lng + off.lng) * 1e7) / 1e7 }; }), parts = [], warn = [], n = 0;
+      for (var i = 0; i < moves.length; i += 1000) parts.push(moves.slice(i, i + 1000));
+      $('#mvS').disabled = true;
+      parts.reduce(function (p, ch) { return p.then(function () { return api('moveTrees', { moves: ch, reason: reason }).then(function (r) { n += r.moved; warn = warn.concat(r.warnings || []); }); }); }, Promise.resolve())
+        .then(function () { UI.toast(nf(n, 0) + ' pohon digeser.' + (warn.length ? ' ' + warn[0] + (warn.length > 1 ? ' (+' + (warn.length - 1) + ' lainnya)' : '') : ''), warn.length ? 'warn' : 'ok', 7000); MapV.stopTool(); MapV.reload(); })
+        .catch(function () { $('#mvS').disabled = false; });
+    });
+  };
+  MapV.tool = { name: 'move', toggle: toggle, addParcel: addParcel, stop: function () { grp.remove(); if (handle) map.removeLayer(handle); bar.remove(); $('#mapWrap').style.removeProperty('--sbh'); } };
+  if (ids && ids.length) { var want = {}; ids.forEach(function (i) { want[i] = 1; }); var pts = [];
+    d.trees.forEach(function (t) { if (want[t[0]]) { sel[t[0]] = { code: t[1], lat: Number(t[2]), lng: Number(t[3]) }; pts.push([t[2], t[3]]); } });
+    if (pts.length) map.fitBounds(L.latLngBounds(pts), { padding: [60, 60], maxZoom: 20 }); }
+  draw();
 };
 MapV.reload = function () { Data.invalidate('Bidang'); Data.invalidate('Pohon'); api('gisLayers', {}).then(function (d) { S.cache._gis = d; MapV.data = d; MapV.drawLayers(); }); };
 MapV.exportMenu = function () {
@@ -2780,7 +2962,7 @@ Router.reg('about', { render: function (el) {
   el.innerHTML = vh('Tentang Aplikasi') + '<div class="grid g2"><div class="card"><div class="row" style="gap:14px"><img src="' + (S.boot.settings.brand.logo || App.defLogo()) + '" style="width:72px;height:72px;border-radius:16px;cursor:zoom-in" onclick="UI.zoom(this.src)"><div><h2 style="margin:0">' + esc(S.boot.settings.brand.title) + '</h2><div class="muted">' + esc(a.name) + '</div></div></div>' +
     '<div class="pop-r" style="margin-top:12px"><span>Versi aplikasi</span><b>' + esc(a.version) + '</b></div><div class="pop-r"><span>Build</span><b>' + esc(a.build) + '</b></div><div class="pop-r"><span>Lisensi</span><b>' + esc(L.label) + (L.exp ? ' · s/d ' + fdate(L.exp) : '') + '</b></div><div class="pop-r"><span>ID instalasi</span><b>' + esc(L.install_id) + '</b></div>' +
     '<div class="pop-r"><span>Antrean offline</span><b>' + S.queue.length + ' data</b></div><div class="row" style="margin-top:12px"><button class="btn" onclick="Legal.show(\'terms\')">Syarat & Ketentuan</button><button class="btn" onclick="Legal.show(\'privacy\')">Pemberitahuan Privasi</button>' + (S.queue.length ? '<button class="btn primary" onclick="Sync.flush()">Sinkronkan sekarang</button>' : '') + '</div></div>' +
-    '<div class="card"><h3>Riwayat versi</h3><p><b>1.2.0</b> — impor/ekspor Shapefile (SHP) di peta, impor/ekspor Excel di semua tabel data, pratinjau grid tanam langsung di peta, perbaikan simpan grid &amp; unggah foto/video/PDF untuk Super Admin, label koordinat cetak peta tidak terpotong, tombol Tes koneksi AI.</p><p><b>1.1.0</b> — layer foto udara drone PMTiles (online URL &amp; offline file besar), ortho ikut tercetak di PDF, menu Mode Lapangan, tombol mengambang PWA dapat digeser/diciutkan/disembunyikan.</p><p><b>1.0.0</b> (' + esc(a.build) + ') — rilis awal: multi-tenant RBAC, survei GPS/GNSS/RTK, peta GIS, digital tree + QR, dokumentasi, operasional, panen, inventori, keuangan double-entry, AI assistant, cetak peta PDF, PWA offline.</p>' +
+    '<div class="card"><h3>Riwayat versi</h3><p><b>1.3.0</b> — peta: info lengkap bidang saat diklik (luas, keliling, petani, kebun, jumlah pohon) &amp; tombol Zoom ke bidang / layer / foto udara; Data Pohon: pilih banyak sekaligus, hapus terpilih, geser posisi pohon di peta (seret atau panah per 0,2–5 m, cocok untuk foto udara); foto: ubah kategori/keterangan &amp; hapus foto salah unggah.</p><p><b>1.2.1</b> — perbaikan: peta tidak error bila ada laporan hama tanpa koordinat; kode pohon otomatis (grid tanam / impor SHP) melanjutkan nomor terbesar sehingga tidak bentrok; ekspor GeoJSON tanpa fitur kosong; siap pindah foto ke Supabase.</p><p><b>1.2.0</b> — impor/ekspor Shapefile (SHP) di peta, impor/ekspor Excel di semua tabel data, pratinjau grid tanam langsung di peta, perbaikan simpan grid &amp; unggah foto/video/PDF untuk Super Admin, label koordinat cetak peta tidak terpotong, tombol Tes koneksi AI.</p><p><b>1.1.0</b> — layer foto udara drone PMTiles (online URL &amp; offline file besar), ortho ikut tercetak di PDF, menu Mode Lapangan, tombol mengambang PWA dapat digeser/diciutkan/disembunyikan.</p><p><b>1.0.0</b> (' + esc(a.build) + ') — rilis awal: multi-tenant RBAC, survei GPS/GNSS/RTK, peta GIS, digital tree + QR, dokumentasi, operasional, panen, inventori, keuangan double-entry, AI assistant, cetak peta PDF, PWA offline.</p>' +
     '<h3>Komponen pihak ketiga</h3><ul class="tiny"><li>Leaflet 1.9.4 — BSD-2-Clause</li><li>jsPDF 2.5.1 — MIT</li><li>qrcode-generator 1.4.4 — MIT</li><li>jsQR 1.4.0 — Apache-2.0</li><li>PMTiles 4.5.0 (Protomaps) — BSD-3-Clause</li><li>Font Inter — SIL Open Font License 1.1</li><li>Data peta © OpenStreetMap contributors (ODbL); tiles OpenTopoMap (CC-BY-SA); citra © Esri & penyedia (sesuai ketentuan Esri)</li></ul>' +
     '<p class="tiny muted">Ikon antarmuka digambar khusus untuk aplikasi ini.</p></div></div>';
 } });

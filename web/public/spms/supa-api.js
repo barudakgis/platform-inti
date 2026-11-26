@@ -15,10 +15,11 @@
  */
 'use strict';
 var SpmsSupa = (function () {
-  var STAGE = '3', BUILD = '3-2';
+  var STAGE = '3', BUILD = '130-1';
   var TIMEOUT = 45000, PAGE = 1000, TTL = 45000;
   var WRITE = { save: 1, remove: 1, bulkSave: 1, saveSurvey: 1, parcelTransition: 1, replaceTree: 1, uploadMedia: 1,
-    journalPost: 1, journalReverse: 1, quickTxn: 1, aiVision: 1 };
+    journalPost: 1, journalReverse: 1, quickTxn: 1, aiVision: 1,
+    bulkRemove: 1, moveTrees: 1, mediaUpdate: 1, mediaRemove: 1 };   // v1.3.0
   var SYNC_OK = { save: 1, saveSurvey: 1, uploadMedia: 1, remove: 1 };
   var LATER = {};   // Tahap 2c: semua aksi SPMS sudah berjalan di Supabase
   var sb = null, WHO = null, WHO_AT = 0, STORE = {}, LOADED = {}, NEEDS = {};

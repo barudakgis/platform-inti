@@ -108,8 +108,8 @@
  */
 var APP = {
   NAME: 'KebunRakyat SPMS',
-  VERSION: '1.2.0',
-  BUILD: '2026-11-25',
+  VERSION: '1.3.0',
+  BUILD: '2026-11-26',
   SCHEMA_VERSION: 1,
   CELL_LIMIT: 45000,          // batas aman (< 50.000 karakter per sel)
   SS_CELL_LIMIT: 20000000,    // batas 20 juta sel per spreadsheet (Google, GA 10 Sep 2026; dulu 10 juta)
@@ -1034,9 +1034,9 @@ function handlers_() {
     changePassword: h_changePassword, updateProfile: h_updateProfile,
     list: h_list, get: h_get, save: h_save, remove: h_remove, bulkSave: h_bulkSave,
     saveSurvey: h_saveSurvey, surveyPoints: h_surveyPoints, parcelQA: h_parcelQA, parcelTransition: h_parcelTransition, parcelVersions: h_parcelVersions,
-    treeHistory: h_treeHistory, replaceTree: h_replaceTree,
+    treeHistory: h_treeHistory, replaceTree: h_replaceTree, moveTrees: h_moveTrees, bulkRemove: h_bulkRemove,
     gisLayers: h_gisLayers, exportData: h_exportData, dashboard: h_dashboard,
-    uploadMedia: h_uploadMedia, getMedia: h_getMedia,
+    uploadMedia: h_uploadMedia, getMedia: h_getMedia, mediaUpdate: h_mediaUpdate, mediaRemove: h_mediaRemove,
     stockBalances: h_stockBalances, journalPost: h_journalPost, journalReverse: h_journalReverse, quickTxn: h_quickTxn,
     journals: h_journals, trialBalance: h_trialBalance, profitLoss: h_profitLoss, costAnalysis: h_costAnalysis,
     aiTest: h_aiTest, aiChat: h_aiChat, aiGisQuery: h_aiGisQuery, aiVision: h_aiVision, forecast: h_forecast, aiReport: h_aiReport, aiUsage: h_aiUsage,
@@ -1142,6 +1142,7 @@ function h_save(ctx, p) {
   if (!isNew && !canTouch_(ctx, ent, old)) throw new Error('Data bukan milik organisasi/akun Anda.');
   if (ent === 'Organisasi' && isNew && ctx.scope !== 'all') throw new Error('Hanya Super Admin yang dapat menambah organisasi.');
   if ((ent === 'Jurnal' || ent === 'JurnalBaris') ) throw new Error('Gunakan menu Keuangan untuk mencatat jurnal (double-entry).');
+  if (ent === 'Media') throw new Error('Gunakan tombol Foto / Ubah foto untuk dokumentasi.');   // file_id tidak boleh diubah lewat simpan biasa
   if (isNew) licenseCheck_(ctx, ent, 1);
   // ambil hanya field dari skema (whitelist)
   var row = {};
@@ -1289,6 +1290,76 @@ function h_remove(ctx, p) {
   return true;
 }
 
+var BULK_DEL_ENTS_ = ['Pohon', 'Petani', 'Kebun', 'Aktivitas', 'HamaPenyakit', 'Pemupukan', 'Panen', 'Pembeli', 'Inventori'];
+/** Hapus banyak sekaligus (tandai terhapus, riwayat tetap ada). p = {ent, ids:[...], reason} */
+function h_bulkRemove(ctx, p) {
+  var ent = p.ent, s = ent_(ent); need_(ctx, s.module, 'D');
+  if (BULK_DEL_ENTS_.indexOf(ent) < 0) throw new Error('Hapus massal tersedia untuk: ' + BULK_DEL_ENTS_.join(', ') + '.');
+  var ids = (p.ids || []).map(String).filter(function (x, i, a) { return x && a.indexOf(x) === i; });
+  if (!ids.length) throw new Error('Tidak ada data yang dipilih.');
+  if (ids.length > 5000) throw new Error('Maksimal 5.000 data per sekali hapus.');
+  var now = nowIso_(), done = 0, skipped = 0;
+  ids.forEach(function (id) {
+    var r = Db.get(ent, id);
+    if (!r || r.deleted == 1 || !canTouch_(ctx, ent, r)) { skipped++; return; }
+    Db.update(ent, id, { deleted: 1, updated_at: now }); done++;
+    if (ent === 'Pemupukan') Db.all('MutasiStok').forEach(function (m) { if (m.ref === 'FERT:' + id && m.deleted != 1) Db.update('MutasiStok', m.id, { deleted: 1 }); });
+  });
+  audit_(ctx, 'bulk_delete', ent, '', done + ' dihapus' + (skipped ? ', ' + skipped + ' dilewati' : '') + (p.reason ? ' — ' + String(p.reason).slice(0, 200) : ''));
+  return { removed: done, skipped: skipped };
+}
+
+/** Geser posisi pohon (mis. dicocokkan dengan foto udara). p = {moves:[{id, lat, lng}], reason} */
+function h_moveTrees(ctx, p) {
+  need_(ctx, 'tree', 'U');
+  var moves = (p.moves || []).slice(0, 5001);
+  if (!moves.length) throw new Error('Tidak ada pohon yang digeser.');
+  if (moves.length > 5000) throw new Error('Maksimal 5.000 pohon per sekali geser.');
+  var now = nowIso_(), today = fmtDate_(new Date()), events = [], warnings = [], n = 0, maxD = 0;
+  var reason = String(p.reason || '').slice(0, 200);
+  moves.forEach(function (m) {
+    var lat = Number(m.lat), lng = Number(m.lng);
+    if (!isFinite(lat) || !isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) throw new Error('Koordinat tidak valid untuk pohon ' + m.id + '.');
+    var t = Db.get('Pohon', String(m.id));
+    if (!t || t.deleted == 1 || !canTouch_(ctx, 'Pohon', t)) throw new Error('Pohon tidak ditemukan / di luar akses: ' + m.id);
+    lat = Math.round(lat * 1e7) / 1e7; lng = Math.round(lng * 1e7) / 1e7;
+    var d = t.lat && t.lng ? Math.round(Gis.distM([num_(t.lng), num_(t.lat)], [lng, lat]) * 100) / 100 : 0;
+    if (d > maxD) maxD = d;
+    Db.update('Pohon', t.id, { lat: lat, lng: lng, updated_at: now }); n++;
+    events.push({ id: uid_(), org_id: t.org_id, tree_id: t.id, type: 'Lainnya', date: today,
+      description: 'Koreksi posisi: digeser ' + d + ' m' + (reason ? ' (' + reason + ')' : ''), created_by: ctx.user.id, created_at: now });
+    if (t.parcel_id) { var par = Db.get('Bidang', t.parcel_id); if (par && par.geom && !Gis.pointInGeom([lng, lat], par.geom) && warnings.length < 20) warnings.push('Pohon ' + t.code + ' sekarang di luar batas bidang ' + par.code + '.'); }
+  });
+  if (events.length) Db.insertMany('EventPohon', events);
+  audit_(ctx, 'move', 'Pohon', moves.length === 1 ? String(moves[0].id) : '', n + ' pohon digeser, maks ' + maxD + ' m' + (reason ? ' — ' + reason : ''));
+  return { moved: n, max_m: maxD, warnings: warnings };
+}
+
+/** Ubah kategori / keterangan foto (berkas tidak berubah). */
+function h_mediaUpdate(ctx, p) {
+  need_(ctx, 'media', 'U');
+  var m = Db.get('Media', String(p.id || ''));
+  if (!m || m.deleted == 1 || !canTouch_(ctx, 'Media', m)) throw new Error('Foto tidak ditemukan.');
+  var cats = ent_('Media').fields.filter(function (f) { return f[0] === 'category'; })[0][2].slice(4).split('|');
+  var patch = { updated_at: nowIso_() };
+  if (p.category !== undefined) { if (cats.indexOf(String(p.category)) < 0) throw new Error('Kategori tidak valid.'); patch.category = String(p.category); }
+  if (p.description !== undefined) patch.description = String(p.description).slice(0, 300);
+  var saved = Db.update('Media', m.id, patch);
+  audit_(ctx, 'media_update', 'Media', m.id, JSON.stringify(diff_(m, saved)).slice(0, 500));
+  return { row: saved };
+}
+
+/** Hapus foto (salah unggah). Boleh bila punya izin hapus Dokumentasi, ATAU foto itu diunggah sendiri < 24 jam lalu. */
+function h_mediaRemove(ctx, p) {
+  var m = Db.get('Media', String(p.id || ''));
+  if (!m || m.deleted == 1 || !canTouch_(ctx, 'Media', m)) throw new Error('Foto tidak ditemukan.');
+  var own = m.created_by === ctx.user.id && (Date.now() - new Date(m.created_at).getTime()) < 24 * 3600 * 1000;
+  if (!can_(ctx, 'media', 'D') && !own) throw new Error('Akses ditolak: foto hanya bisa dihapus oleh pengunggahnya (maks 24 jam) atau admin.');
+  Db.update('Media', m.id, { deleted: 1, updated_at: nowIso_() });   // berkas asli tetap tersimpan (audit)
+  audit_(ctx, 'media_delete', 'Media', m.id, (m.entity || '') + ' ' + (m.entity_id || '') + (p.reason ? ' — ' + String(p.reason).slice(0, 200) : ''));
+  return true;
+}
+
 /* ================= Survei & QA bidang ================= */
 function h_saveSurvey(ctx, p) {
   need_(ctx, 'survey', 'C');
@@ -1402,7 +1473,7 @@ function h_gisLayers(ctx, p) {
   var parcels = scopeRows_(ctx, 'Bidang', Db.all('Bidang')).filter(function (b) { return b.geom; });
   var feats = parcels.map(function (b) {
     var g; try { g = JSON.parse(b.geom); } catch (e) { return null; }
-    return { type: 'Feature', geometry: g.type === 'Feature' ? g.geometry : g, properties: { id: b.id, code: b.code, name: b.name, status: b.status, area_m2: b.area_m2, farmer_id: b.farmer_id, farm_id: b.farm_id, commodity_id: b.commodity_id, method: b.method } };
+    return { type: 'Feature', geometry: g.type === 'Feature' ? g.geometry : g, properties: { id: b.id, code: b.code, name: b.name, status: b.status, area_m2: b.area_m2, perimeter_m: b.perimeter_m, version: b.version, farmer_id: b.farmer_id, farm_id: b.farm_id, commodity_id: b.commodity_id, method: b.method, land_relation: b.land_relation, accuracy_m: b.accuracy_m } };
   }).filter(Boolean);
   var trees = can_(ctx, 'tree', 'R') ? scopeRows_(ctx, 'Pohon', Db.all('Pohon')).filter(function (t) { return t.lat && t.lng; })
     .map(function (t) { return [t.id, t.code, num_(t.lat), num_(t.lng), t.health || '', t.status || '', t.commodity_id, t.parcel_id, t.productivity || '', t.planting_date || '']; }) : [];
