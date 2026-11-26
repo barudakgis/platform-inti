@@ -1,6 +1,6 @@
 // Service Worker — membuat aplikasi tetap terbuka tanpa internet.
 // NAIKKAN VERSION setiap rilis agar cache lama dibersihkan.
-const VERSION = 'v1.0.4';
+const VERSION = 'v1.0.5';
 const SHELL = `shell-${VERSION}`;
 const TILES = 'tiles-v1';
 const MAX_TILES = 1500; // ubin peta yang pernah dilihat (jangan unduh massal: dilarang kebijakan OSM)
