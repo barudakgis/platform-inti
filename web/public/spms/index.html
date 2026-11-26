@@ -194,12 +194,12 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}.tbl th{position:st
   <div id="lightbox" class="hidden"><div class="lb-stage"><img id="lbImg" alt=""></div>
     <div class="lb-bar"><button onclick="UI.zoomBy(1.3)">＋</button><button onclick="UI.zoomBy(1/1.3)">－</button><button onclick="UI.zoomReset()">⟲</button><button onclick="UI.zoomClose()">✕</button></div></div>
 
-  <script src="config.js?v=131-1"></script>
-<script src="supabase.js?v=131-1"></script>
-<script src="engine.js?v=131-1"></script>
-<script src="supa-api.js?v=131-1"></script>
+  <script src="config.js?v=132-1"></script>
+<script src="supabase.js?v=132-1"></script>
+<script src="engine.js?v=132-1"></script>
+<script src="supa-api.js?v=132-1"></script>
 <script>if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(function () {});</script>
-<script>window.BOOT = {"version": "1.3.1 \u00b7 Supabase", "build": "131-1", "name": "KebunRakyat SPMS", "brand": {"title": "KebunRakyat SPMS", "subtitle": "Manajemen Perkebunan Rakyat"}};</script>
+<script>window.BOOT = {"version": "1.3.2 \u00b7 Supabase", "build": "132-1", "name": "KebunRakyat SPMS", "brand": {"title": "KebunRakyat SPMS", "subtitle": "Manajemen Perkebunan Rakyat"}};</script>
   <script>
 /* ===== JsCore: state, API, router (tombol Back), tema, login/logout ===== */
 'use strict';
@@ -1544,7 +1544,9 @@ MapV.drawLayers = function () {
     MapV.lyr.parcels = L.geoJSON({ type: 'FeatureCollection', features: feats }, {
       style: function (f) { var c = STY.parcel[f.properties.status] || '#7f8c8d', h = hl && hl.layer === 'parcels' && hset[f.properties.id]; return { color: h ? '#ff00ff' : c, weight: h ? 4 : 2, fillColor: c, fillOpacity: h ? .35 : .15 }; },
       onEachFeature: function (f, l) { var p = f.properties;
-        l.bindPopup(function () { return MapV.parcelTip(p); }, { maxWidth: 320, minWidth: 230 });
+        l.on('click', function (e) {   // alat aktif (gambar batas, ukur, tambah pohon) → klik diteruskan ke alat, bukan membuka info
+          L.DomEvent.stop(e); if (MapV.tool && MapV.tool.click) return MapV.tool.click(e);
+          MapV.parcelPopup(p, e.latlng); });
         if (!MapV.st.labels) l.bindTooltip(esc(p.code) + (p.area_m2 ? ' · ' + ha(p.area_m2) : ''), { sticky: true, direction: 'top', className: 'tiny' });
         if (MapV.st.labels) l.bindTooltip(esc(p.code), { permanent: true, direction: 'center', className: 'tiny' }); }
     }).addTo(map);
@@ -1557,7 +1559,7 @@ MapV.drawLayers = function () {
       if (useOrg && !parcelsOk[t[7]]) return;
       var h = hl && hl.layer === 'trees' && hset[t[0]];
       L.circleMarker([t[2], t[3]], { radius: h ? 7 : 4.5, weight: h ? 3 : 1, color: h ? '#ff00ff' : '#fff', fillColor: treeColor(t, mode, d.fert || {}), fillOpacity: .95 })
-        .on('click', function (e) { if (MapV.tool && MapV.tool.name === 'move') { L.DomEvent.stop(e); return MapV.tool.toggle(t); } L.popup().setLatLng([t[2], t[3]]).setContent('<div class="pop-t">' + esc(t[1]) + '</div><div class="pop-r"><span>Kesehatan</span>' + UI.pill(t[4]) + '</div><div class="pop-r"><span>Produktivitas</span>' + UI.pill(t[8]) + '</div><div class="pop-r"><span>Status</span>' + UI.pill(t[5]) + '</div><button class="btn sm block" onclick="Views.treeDetail(\'' + t[0] + '\')">Profil pohon</button>' + (can('tree', 'U') ? '<button class="btn sm block" onclick="MapV.map.closePopup();MapV.toolMove(null,[\'' + t[0] + '\'])">' + ic('move') + ' Geser posisi</button>' : '') + '').openOn(map); })
+        .on('click', function (e) { L.DomEvent.stop(e); if (MapV.tool && MapV.tool.name === 'move') return MapV.tool.toggle(t); if (MapV.tool && MapV.tool.click) return MapV.tool.click(e); L.popup().setLatLng([t[2], t[3]]).setContent('<div class="pop-t">' + esc(t[1]) + '</div><div class="pop-r"><span>Kesehatan</span>' + UI.pill(t[4]) + '</div><div class="pop-r"><span>Produktivitas</span>' + UI.pill(t[8]) + '</div><div class="pop-r"><span>Status</span>' + UI.pill(t[5]) + '</div><button class="btn sm block" onclick="Views.treeDetail(\'' + t[0] + '\')">Profil pohon</button>' + (can('tree', 'U') ? '<button class="btn sm block" onclick="MapV.map.closePopup();MapV.toolMove(null,[\'' + t[0] + '\'])">' + ic('move') + ' Geser posisi</button>' : '') + '').openOn(map); })
         .addTo(g);
     });
     MapV.lyr.trees = g.addTo(map);
@@ -1567,7 +1569,9 @@ MapV.drawLayers = function () {
       return L.circleMarker([x[2], x[3]], { radius: 9, color: c, weight: 3, fillOpacity: 0, dashArray: '3 3' }).bindPopup('<div class="pop-t">' + esc(x[5]) + ': ' + esc(x[1]) + '</div>Tingkat: ' + esc(x[4])); })).addTo(map);
   }
 };
-function orgFilterGeo(fs) { if (!(S.boot.scope === 'all' && S.orgId)) return fs; var ok = {}; orgFilter(Data.peek('Bidang') || []).forEach(function (b) { ok[b.id] = 1; }); return fs.filter(function (f) { return ok[f.properties.id]; }); }
+function orgFilterGeo(fs) { if (!(S.boot.scope === 'all' && S.orgId)) return fs;   // org_id ikut di setiap fitur → tidak bergantung cache daftar Bidang (dulu kosong setelah simpan batas)
+  var ok = null; return fs.filter(function (f) { var o = f.properties.org_id; if (o !== undefined) return !o || o === S.orgId;
+    if (!ok) { ok = {}; orgFilter(Data.peek('Bidang') || []).forEach(function (b) { ok[b.id] = 1; }); } return ok[f.properties.id]; }); }
 MapV.applyParams = function (p) {
   var map = MapV.map, d = MapV.data; if (!p) return;
   if (p.highlight) { MapV.hl = p.highlight; MapV.drawLayers(); MapV.panel(); }
@@ -1602,7 +1606,7 @@ MapV.toolMeasure = function (btn) {
     if (pts.length > 1) { var m = Geo.measure(pts), txt = 'Jarak: ' + nf(Geo.lineLen(pts), 1) + ' m' + (pts.length > 2 ? '<br>Luas: ' + nf(m.area, 1) + ' m² (' + nf(m.area / 1e4, 4) + ' ha)' : ''); tip.setLatLng(ll[ll.length - 1]).setContent(txt); if (!MapV.map.hasLayer(tip)) tip.addTo(MapV.map); } };
   var click = function (e) { pts.push([e.latlng.lng, e.latlng.lat]); upd(); };
   MapV.map.on('click', click); UI.toast('Ketuk peta untuk menambah titik ukur. Tekan tombol lagi untuk selesai.', 'ok');
-  MapV.tool = { name: 'measure', stop: function () { MapV.map.off('click', click); [line, poly, tip].forEach(function (l) { MapV.map.removeLayer(l); }); } };
+  MapV.tool = { name: 'measure', click: click, stop: function () { MapV.map.off('click', click); [line, poly, tip].forEach(function (l) { MapV.map.removeLayer(l); }); } };
 };
 MapV.toolDraw = function (btn) {
   if (MapV.tool && MapV.tool.name === 'draw') return MapV.stopTool();
@@ -1619,7 +1623,7 @@ MapV.toolDraw = function (btn) {
   $('#dwU').onclick = function () { pts.pop(); upd(); }; $('#dwX').onclick = function () { MapV.stopTool(); };
   $('#dwS').onclick = function () { if (pts.length < 3) return UI.toast('Minimal 3 titik.', 'warn'); if (Geo.selfIntersect(pts)) return UI.toast('Poligon berpotongan sendiri — perbaiki titik.', 'bad');
     Survey.saveDialog(pts.map(function (p, i) { return { lat: p[1], lng: p[0], kind: 'vertex', ts: new Date().toISOString() }; }), { method: 'Digitasi', started_at: new Date().toISOString() }, function () { MapV.stopTool(); MapV.reload(); }); };
-  MapV.tool = { name: 'draw', stop: function () { MapV.map.off('click', click); MapV.map.removeLayer(mk); MapV.map.removeLayer(poly); bar.remove(); } };
+  MapV.tool = { name: 'draw', click: click, stop: function () { MapV.map.off('click', click); MapV.map.removeLayer(mk); MapV.map.removeLayer(poly); bar.remove(); } };
 };
 MapV.toolTree = function (btn) {
   if (MapV.tool && MapV.tool.name === 'tree') return MapV.stopTool();
@@ -1628,7 +1632,7 @@ MapV.toolTree = function (btn) {
     var pt = [e.latlng.lng, e.latlng.lat], par = (MapV.data.parcels.features.filter(function (f) { return Geo.rings(f.geometry).some(function (r) { return Geo.pip(pt, r); }); })[0] || {}).properties;
     Views.treeForm(null, { lat: Math.round(pt[1] * 1e7) / 1e7, lng: Math.round(pt[0] * 1e7) / 1e7, parcel_id: par ? par.id : '' }).then(function (x) { if (x) MapV.reload(); });
   };
-  MapV.map.on('click', click); MapV.tool = { name: 'tree', stop: function () { MapV.map.off('click', click); } };
+  MapV.map.on('click', click); MapV.tool = { name: 'tree', click: click, stop: function () { MapV.map.off('click', click); } };
 };
 /* ---------- Info bidang (maptip) & zoom ---------- */
 MapV.parcelTip = function (p) {
@@ -1646,6 +1650,7 @@ MapV.parcelTip = function (p) {
     (can('survey', 'C') ? '<button class="btn sm" onclick="Router.go(\'survey\',{parcel:\'' + p.id + '\'})">' + ic('gps') + ' Ukur ulang</button>' : '') +
     (MapV.tool && MapV.tool.name === 'move' ? '<button class="btn sm primary" onclick="MapV.map.closePopup();MapV.tool.addParcel(\'' + p.id + '\')">' + ic('move') + ' Pilih pohon bidang ini</button>' : '') + '</div>';
 };
+MapV.parcelPopup = function (p, ll) { L.popup({ maxWidth: 320, minWidth: 230 }).setLatLng(ll).setContent(MapV.parcelTip(p)).openOn(MapV.map); };
 MapV.editParcel = function (id) { MapV.map.closePopup(); Data.list('Bidang').then(function (L0) { var r = L0.filter(function (x) { return x.id === id; })[0]; if (r) UI.form('Bidang', r).then(function (x) { if (x) MapV.reload(); }); }); };
 MapV.zoomParcel = function (id, open) {
   var map = MapV.map, lyr = null;
@@ -1653,7 +1658,7 @@ MapV.zoomParcel = function (id, open) {
   var f = lyr ? lyr.feature : (MapV.data.parcels.features.filter(function (x) { return x.properties.id === id; })[0]);
   if (!f) return UI.toast('Bidang belum punya batas di peta.', 'warn');
   map.fitBounds(L.geoJSON(f).getBounds(), { padding: [40, 40], maxZoom: 20 });
-  if (open && lyr) setTimeout(function () { lyr.openPopup(L.geoJSON(f).getBounds().getCenter()); }, 350);
+  if (open) setTimeout(function () { MapV.parcelPopup(f.properties, L.geoJSON(f).getBounds().getCenter()); }, 350);
 };
 MapV.zoomTo = function (what) {
   var map = MapV.map, d = MapV.data, pts = [], b = null;
@@ -1742,7 +1747,8 @@ MapV.toolMove = function (btn, ids) {
     if (pts.length) map.fitBounds(L.latLngBounds(pts), { padding: [60, 60], maxZoom: 20 }); }
   draw();
 };
-MapV.reload = function () { Data.invalidate('Bidang'); Data.invalidate('Pohon'); api('gisLayers', {}).then(function (d) { S.cache._gis = d; MapV.data = d; MapV.drawLayers(); }); };
+MapV.reload = function () { Data.invalidate('Bidang'); Data.invalidate('Pohon'); delete S.cache._gis;
+  Promise.all([api('gisLayers', {}), Data.list('Bidang', true).catch(function () { return []; })]).then(function (r) { S.cache._gis = r[0]; MapV.data = r[0]; MapV.drawLayers(); }); };
 MapV.exportMenu = function () {
   var ents = [['Bidang', 'Bidang (poligon)'], ['Pohon', 'Pohon (titik)'], ['HamaPenyakit', 'Hama/penyakit (titik)']].filter(function (x) { return can(S.boot.schema[x[0]].module, 'R'); });
   UI.modal('Ekspor data peta', '<table class="tbl">' + ents.map(function (x) { return '<tr><td><b>' + x[1] + '</b></td><td>' + [['shp', 'SHP'], ['xlsx', 'Excel'], ['geojson', 'GeoJSON'], ['kml', 'KML']].map(function (f) { return '<button class="btn sm" data-e="' + x[0] + '" data-f="' + f[0] + '">' + f[1] + '</button>'; }).join(' ') + '</td></tr>'; }).join('') + '</table><p class="tiny muted">SHP: WGS 84 (EPSG:4326), atribut UTF-8, nama kolom ≤10 karakter (mis. kode, luas_m2, komoditas, spms_id). Kolom spms_id dipakai untuk mencocokkan saat impor ulang.</p>', { wide: true });
@@ -2993,7 +2999,7 @@ Router.reg('about', { render: function (el) {
   el.innerHTML = vh('Tentang Aplikasi') + '<div class="grid g2"><div class="card"><div class="row" style="gap:14px"><img src="' + (S.boot.settings.brand.logo || App.defLogo()) + '" style="width:72px;height:72px;border-radius:16px;cursor:zoom-in" onclick="UI.zoom(this.src)"><div><h2 style="margin:0">' + esc(S.boot.settings.brand.title) + '</h2><div class="muted">' + esc(a.name) + '</div></div></div>' +
     '<div class="pop-r" style="margin-top:12px"><span>Versi aplikasi</span><b>' + esc(a.version) + '</b></div><div class="pop-r"><span>Build</span><b>' + esc(a.build) + '</b></div><div class="pop-r"><span>Lisensi</span><b>' + esc(L.label) + (L.exp ? ' · s/d ' + fdate(L.exp) : '') + '</b></div><div class="pop-r"><span>ID instalasi</span><b>' + esc(L.install_id) + '</b></div>' +
     '<div class="pop-r"><span>Antrean offline</span><b>' + S.queue.length + ' data</b></div><div class="row" style="margin-top:12px"><button class="btn" onclick="Legal.show(\'terms\')">Syarat & Ketentuan</button><button class="btn" onclick="Legal.show(\'privacy\')">Pemberitahuan Privasi</button>' + (S.queue.length ? '<button class="btn primary" onclick="Sync.flush()">Sinkronkan sekarang</button>' : '') + '</div></div>' +
-    '<div class="card"><h3>Riwayat versi</h3><p><b>1.3.1</b> — perbaikan: titik pohon kembali tampil di atas bidang lahan; cetak peta PDF kini dengan <b>pratinjau</b> halaman sebelum diunduh.</p><p><b>1.3.0</b> — peta: info lengkap bidang saat diklik (luas, keliling, petani, kebun, jumlah pohon) &amp; tombol Zoom ke bidang / layer / foto udara; Data Pohon: pilih banyak sekaligus, hapus terpilih, geser posisi pohon di peta (seret atau panah per 0,2–5 m, cocok untuk foto udara); foto: ubah kategori/keterangan &amp; hapus foto salah unggah.</p><p><b>1.2.1</b> — perbaikan: peta tidak error bila ada laporan hama tanpa koordinat; kode pohon otomatis (grid tanam / impor SHP) melanjutkan nomor terbesar sehingga tidak bentrok; ekspor GeoJSON tanpa fitur kosong; siap pindah foto ke Supabase.</p><p><b>1.2.0</b> — impor/ekspor Shapefile (SHP) di peta, impor/ekspor Excel di semua tabel data, pratinjau grid tanam langsung di peta, perbaikan simpan grid &amp; unggah foto/video/PDF untuk Super Admin, label koordinat cetak peta tidak terpotong, tombol Tes koneksi AI.</p><p><b>1.1.0</b> — layer foto udara drone PMTiles (online URL &amp; offline file besar), ortho ikut tercetak di PDF, menu Mode Lapangan, tombol mengambang PWA dapat digeser/diciutkan/disembunyikan.</p><p><b>1.0.0</b> (' + esc(a.build) + ') — rilis awal: multi-tenant RBAC, survei GPS/GNSS/RTK, peta GIS, digital tree + QR, dokumentasi, operasional, panen, inventori, keuangan double-entry, AI assistant, cetak peta PDF, PWA offline.</p>' +
+    '<div class="card"><h3>Riwayat versi</h3><p><b>1.3.2</b> — perbaikan: setelah menyimpan batas bidang hasil gambar/ketuk di peta, bidang &amp; titik pohon tidak hilang lagi (tanpa perlu refresh); saat menggambar batas atau mengukur, ketukan di atas bidang/pohon yang sudah ada kini menambah titik (bukan membuka info).</p><p><b>1.3.1</b> — perbaikan: titik pohon kembali tampil di atas bidang lahan; cetak peta PDF kini dengan <b>pratinjau</b> halaman sebelum diunduh.</p><p><b>1.3.0</b> — peta: info lengkap bidang saat diklik (luas, keliling, petani, kebun, jumlah pohon) &amp; tombol Zoom ke bidang / layer / foto udara; Data Pohon: pilih banyak sekaligus, hapus terpilih, geser posisi pohon di peta (seret atau panah per 0,2–5 m, cocok untuk foto udara); foto: ubah kategori/keterangan &amp; hapus foto salah unggah.</p><p><b>1.2.1</b> — perbaikan: peta tidak error bila ada laporan hama tanpa koordinat; kode pohon otomatis (grid tanam / impor SHP) melanjutkan nomor terbesar sehingga tidak bentrok; ekspor GeoJSON tanpa fitur kosong; siap pindah foto ke Supabase.</p><p><b>1.2.0</b> — impor/ekspor Shapefile (SHP) di peta, impor/ekspor Excel di semua tabel data, pratinjau grid tanam langsung di peta, perbaikan simpan grid &amp; unggah foto/video/PDF untuk Super Admin, label koordinat cetak peta tidak terpotong, tombol Tes koneksi AI.</p><p><b>1.1.0</b> — layer foto udara drone PMTiles (online URL &amp; offline file besar), ortho ikut tercetak di PDF, menu Mode Lapangan, tombol mengambang PWA dapat digeser/diciutkan/disembunyikan.</p><p><b>1.0.0</b> (' + esc(a.build) + ') — rilis awal: multi-tenant RBAC, survei GPS/GNSS/RTK, peta GIS, digital tree + QR, dokumentasi, operasional, panen, inventori, keuangan double-entry, AI assistant, cetak peta PDF, PWA offline.</p>' +
     '<h3>Komponen pihak ketiga</h3><ul class="tiny"><li>Leaflet 1.9.4 — BSD-2-Clause</li><li>jsPDF 2.5.1 — MIT</li><li>qrcode-generator 1.4.4 — MIT</li><li>jsQR 1.4.0 — Apache-2.0</li><li>PMTiles 4.5.0 (Protomaps) — BSD-3-Clause</li><li>Font Inter — SIL Open Font License 1.1</li><li>Data peta © OpenStreetMap contributors (ODbL); tiles OpenTopoMap (CC-BY-SA); citra © Esri & penyedia (sesuai ketentuan Esri)</li></ul>' +
     '<p class="tiny muted">Ikon antarmuka digambar khusus untuk aplikasi ini.</p></div></div>';
 } });

@@ -108,7 +108,7 @@
  */
 var APP = {
   NAME: 'KebunRakyat SPMS',
-  VERSION: '1.3.1',
+  VERSION: '1.3.2',
   BUILD: '2026-11-26',
   SCHEMA_VERSION: 1,
   CELL_LIMIT: 45000,          // batas aman (< 50.000 karakter per sel)
@@ -1473,7 +1473,7 @@ function h_gisLayers(ctx, p) {
   var parcels = scopeRows_(ctx, 'Bidang', Db.all('Bidang')).filter(function (b) { return b.geom; });
   var feats = parcels.map(function (b) {
     var g; try { g = JSON.parse(b.geom); } catch (e) { return null; }
-    return { type: 'Feature', geometry: g.type === 'Feature' ? g.geometry : g, properties: { id: b.id, code: b.code, name: b.name, status: b.status, area_m2: b.area_m2, perimeter_m: b.perimeter_m, version: b.version, farmer_id: b.farmer_id, farm_id: b.farm_id, commodity_id: b.commodity_id, method: b.method, land_relation: b.land_relation, accuracy_m: b.accuracy_m } };
+    return { type: 'Feature', geometry: g.type === 'Feature' ? g.geometry : g, properties: { id: b.id, org_id: b.org_id, code: b.code, name: b.name, status: b.status, area_m2: b.area_m2, perimeter_m: b.perimeter_m, version: b.version, farmer_id: b.farmer_id, farm_id: b.farm_id, commodity_id: b.commodity_id, method: b.method, land_relation: b.land_relation, accuracy_m: b.accuracy_m } };
   }).filter(Boolean);
   var trees = can_(ctx, 'tree', 'R') ? scopeRows_(ctx, 'Pohon', Db.all('Pohon')).filter(function (t) { return t.lat && t.lng; })
     .map(function (t) { return [t.id, t.code, num_(t.lat), num_(t.lng), t.health || '', t.status || '', t.commodity_id, t.parcel_id, t.productivity || '', t.planting_date || '']; }) : [];

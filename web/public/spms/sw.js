@@ -3,7 +3,7 @@
  * - Data Supabase TIDAK di-cache di sini (antrean offline ada di aplikasi).
  * - Peta jalan OSM yang pernah dilihat disimpan (maks 2500 ubin); citra Esri TIDAK disimpan (ketentuan Esri).
  * Nama cache diawali "spms-" agar tidak bentrok dengan Beranda Platform Inti / UMG di domain yang sama. */
-var BUILD = '131-1';
+var BUILD = '132-1';
 var SHELL = 'spms-shell-' + BUILD, CDN = 'spms-cdn-v1', TILES = 'spms-tiles-v1', MAX_TILES = 2500;
 var V = '?v=' + BUILD;
 var SHELL_FILES = ['./', './index.html', './lapangan.html', './manifest.json', './icon-192.png', './icon-512.png',
