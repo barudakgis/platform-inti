@@ -10,15 +10,17 @@
  *  - Tahap 2b: aksi simpan/ubah/hapus/persetujuan/workflow dijalankan mesin yang sama; semua perubahannya
  *    dikirim SEKALIGUS ke palm_apply (satu transaksi, diperiksa izin, cakupan & konflik versi di database).
  *    Foto/lampiran diunggah ke Supabase Storage (bucket palmos).
- *  - Pengguna, pengaturan, profil/password & AI di Tahap 2c.
+ *  - Tahap 2c: pengaturan (lewat palm_apply), profil & password (Supabase Auth), pengguna & role (palm_member_save),
+ *    AI Gemini / WhatsApp gateway / email lewat Edge Function palmos-proxy (kunci rahasia tidak pernah sampai ke browser),
+ *    tautan persetujuan WhatsApp (?wfa=) membuka pengajuan langsung setelah login.
  */
 'use strict';
 var PalmSupa = (function () {
-  var STAGE = '2b', BUILD = '2b-1';
+  var STAGE = '2c', BUILD = '2c-1';
   var PAGE = 1000, TTL = 45000, PAR = 4;
-  var LATER = { settingsSave: 1, profile: 1, changePw: 1, mfaSetup: 1, mfaEnable: 1, userSave: 1, aiAsk: 1 };
+  var LATER = { mfaSetup: 1, mfaEnable: 1 };
   var NA = { trim: 1, archive: 1 };
-  var WRITES = { save: 1, remove: 1, transition: 1, batch: 1, wfSave: 1, wfAct: 1, wfNotify: 1, wfAttach: 1, wfDelegate: 1, wfHolidaySeed: 1 };
+  var WRITES = { save: 1, remove: 1, transition: 1, batch: 1, wfSave: 1, wfAct: 1, wfNotify: 1, wfAttach: 1, wfDelegate: 1, wfHolidaySeed: 1, settingsSave: 1 };
   var LOCK = Promise.resolve();
   function serial(fn) { var p = LOCK.then(fn, fn); LOCK = p.catch(function () { }); return p; }
   var sb = null, WHO = null, WHO_AT = 0, META = null, BY_SHEET = {}, STORE = {}, ENG = null, ENGP = null, NEEDS = {};
@@ -84,7 +86,9 @@ var PalmSupa = (function () {
   }
 
   /* ------------------------------------------------------------ sesi */
+  var OUT = false;
   async function session() {
+    if (OUT) throw appErr('NOSESSION', 'Sesi berakhir, silakan login kembali');
     var r = await client().auth.getSession();
     if (r.error) throw dbErr(r.error, 'auth');
     if (!r.data || !r.data.session) throw appErr('NOSESSION', 'Sesi berakhir, silakan login kembali');
@@ -263,7 +267,8 @@ var PalmSupa = (function () {
       var miss = out.missed.filter(function (s) { return !STORE[s]; });
       if (out.missed.length) remember(keys, out.missed);
       if (miss.length && round < 8) { eng.__undo(); await loadMany(miss); continue; }
-      if (!out.ops.length) { eng.__commit(); return out.s; }
+      if (out.ext.length && round < 8) { eng.__undo(); await external(out.ext, eng); continue; }
+      if (!out.ops.length) { eng.__commit(); sendLater(out.fire); return out.s; }
       var res = JSON.parse(out.s);
       if (!res.ok && action !== 'batch' && action !== 'multi') { eng.__undo(); return out.s; }
       try { await commit(eng, action, out); } catch (e) {
@@ -271,7 +276,7 @@ var PalmSupa = (function () {
         (out.ops || []).forEach(function (o) { if (STORE[o.sheet]) STORE[o.sheet].at = 0; });
         throw e;
       }
-      eng.__commit();
+      eng.__commit(); sendLater(out.fire);
       if (out.uploads.length) return out.s.replace(/@@UPLOAD:([^@]+)@@/g, function (x, p) { return (LAST_UP[p] || x); });
       return out.s;
     }
@@ -310,6 +315,108 @@ var PalmSupa = (function () {
     for (var i = 0; i < list.length; i += PAR) await Promise.all(list.slice(i, i + PAR).map(refresh));
   }
 
+  /* ------------------------------------------------------------ layanan luar (Edge Function palmos-proxy) */
+  async function proxy(calls) {
+    var r = await client().functions.invoke('palmos-proxy', { body: { org: WHO.org_id, calls: calls } });
+    if (r.error) {
+      var m = String(r.error.message || r.error);
+      throw appErr('PROXY', /not found|404|Failed to send/i.test(m) ? 'Edge Function palmos-proxy belum dipasang (lihat panduan Tahap 2c).' : 'Layanan luar gagal: ' + m);
+    }
+    return (r.data && r.data.results) || [];
+  }
+  async function external(ext, eng) {
+    var map = {};
+    try {
+      var res = await proxy(ext.map(function (x) { return { type: 'http', req: x.req }; }));
+      ext.forEach(function (x, i) { var r = res[i] || {}; map[x.key] = { status: r.status || 502, text: r.text || r.error || '' }; });
+    } catch (e) { ext.forEach(function (x) { map[x.key] = { status: 503, text: e.message }; }); }
+    eng.__setExt(JSON.stringify(map));
+  }
+  function sendLater(fire) {
+    if (!fire || !fire.length) return;
+    var calls = fire.map(function (f) { return f.kind === 'mail' ? { type: 'mail', mail: f.mail } : { type: 'http', req: f.req }; });
+    proxy(calls).then(function (res) {
+      var bad = res.filter(function (r) { return r && r.status >= 300; }).length;
+      if (bad && window.toast) toast(bad + ' notifikasi (WA/email) gagal dikirim server.', 'warn');
+    }, function (e) { if (window.toast) toast('Notifikasi WA/email belum terkirim: ' + e.message, 'warn'); });
+  }
+
+  /* ------------------------------------------------------------ profil, password, pengguna */
+  function pwPolicy(pw) { if (!pw || pw.length < 8 || !/[A-Za-z]/.test(pw) || !/[0-9]/.test(pw)) throw appErr('VALID', 'Password minimal 8 karakter, kombinasi huruf dan angka'); }
+  function tempClient() { var c = cfg(); return window.supabase.createClient(c.url, c.key, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'palmos-temp' } }); }
+  async function profile(p) {
+    await who();
+    var photo = p.photo === undefined ? null : (p.photo || '');
+    await rpcDb('palm_profile_save', { p_org: WHO.org_id, p_name: String(p.name || '').slice(0, 120), p_photo: photo });
+    var note = '', em = String(p.email || '').trim().toLowerCase(), cur = String((WHO.user || {}).auth_email || '').toLowerCase();
+    if (em && em !== cur) {
+      var r = await client().auth.updateUser({ email: em });
+      if (r.error) throw dbErr(r.error, 'email');
+      note = 'Konfirmasi perubahan email dikirim ke ' + em + '.';
+    }
+    if (STORE._Users) STORE._Users.at = 0;
+    await who(true);
+    var u = userObj(WHO); u.roleTitle = WHO.role_title; if (note) u.note = note;
+    return u;
+  }
+  async function changePw(p) {
+    await who(); pwPolicy(p.pw);
+    var email = (WHO.user || {}).auth_email;
+    var chk = await tempClient().auth.signInWithPassword({ email: email, password: String(p.old || '') });
+    if (chk.error) throw appErr('AUTH', 'Password lama salah');
+    var r = await client().auth.updateUser({ password: String(p.pw) });
+    if (r.error) throw dbErr(r.error, 'password');
+    return { ok: true };
+  }
+  async function userSave(p) {
+    await who();
+    var email = String(p.email || '').trim().toLowerCase(), note = '';
+    if (!email) throw appErr('VALID', 'Email wajib diisi: di edisi Supabase pengguna masuk memakai email Platform Inti.');
+    if (!p.id && p.password) {
+      pwPolicy(p.password);
+      var su = await tempClient().auth.signUp({ email: email, password: String(p.password), options: { data: { full_name: p.name || '' } } });
+      if (su.error && !/already|registered/i.test(su.error.message || '')) throw dbErr(su.error, 'daftar');
+      note = (su.data && su.data.user && (su.data.user.identities || []).length) ? 'Akun dibuat. Bila konfirmasi email aktif, pengguna perlu membuka email konfirmasinya dulu.' : 'Email sudah terdaftar — password tidak diubah.';
+    } else if (p.password) {
+      var rs = await client().auth.resetPasswordForEmail(email, { redirectTo: location.href.split('?')[0].replace(/palmos\/.*$/, '') });
+      if (rs.error) throw dbErr(rs.error, 'reset');
+      note = 'Admin tidak dapat mengganti password orang lain di Supabase. Tautan reset password dikirim ke ' + email + '.';
+    }
+    var r = await rpcDb('palm_member_save', { p_org: WHO.org_id, p: { username: p.username, name: p.name, email: email, role: p.role, scope_type: p.scope_type, scope_codes: p.scope_codes, active: p.active !== false } });
+    if (STORE._Users) STORE._Users.at = 0;
+    return { username: String(p.username || '').toLowerCase(), name: p.name, email: email, role: p.role, active: p.active !== false, status: r.status, note: [r.pesan, note].filter(Boolean).join(' ') };
+  }
+  async function usersList() {
+    var s = await serial(function () { return runEngine('users', {}, ''); }), o = JSON.parse(s);
+    if (!o.ok) throw appErr(o.code, o.error);
+    try {
+      var inv = await rpcDb('palm_invites_list', { p_org: WHO.org_id }) || [], roles = {};
+      (S_roles() || []).forEach(function (r) { roles[r.k] = r.t; });
+      inv.forEach(function (i) { o.data.push({ id: 'invite:' + i.email, username: i.username, name: (i.name || i.email) + ' (undangan)', email: i.email, role: i.role, roleTitle: roles[i.role] || i.role,
+        scope_type: i.scope_type, scope_codes: i.scope_codes, active: false, mfa_on: false, last_login: 'belum mendaftar' }); });
+    } catch (e) { }
+    return o.data;
+  }
+  function S_roles() { try { return typeof S !== 'undefined' && S.boot && S.boot.roles; } catch (e) { return null; } }
+
+  /* ------------------------------------------------------------ tautan persetujuan WhatsApp (?wfa=) */
+  var WFA = (function () { try { return new URLSearchParams(location.search).get('wfa') || ''; } catch (e) { return ''; } })();
+  function wfaLater() {
+    if (!WFA) return;
+    var tries = 0, iv = setInterval(async function () {
+      if (++tries > 1200) return clearInterval(iv);
+      if (!(window.__posReady && typeof S !== 'undefined' && S.boot && S.boot.user && window.wxOpen)) return;
+      clearInterval(iv); var t = WFA; WFA = '';
+      try { history.replaceState(history.state, '', location.pathname); } catch (e) { }
+      try {
+        var r = await rpcDb('palm_wf_token_resolve', { p_token: t });
+        if (r.used && window.toast) toast('Tautan ini sudah pernah dipakai; menampilkan pengajuan ' + (r.code || ''), 'warn');
+        go('wfx', { tab: 'todo' }); setTimeout(function () { wxOpen(r.id); }, 400);
+      } catch (e) { if (window.toast) toast(e.message, 'err'); }
+    }, 500);
+  }
+  wfaLater();
+
   /* ------------------------------------------------------------ aksi khusus */
   function pubCache() { try { return JSON.parse(localStorage.getItem('palm_pub') || 'null'); } catch (e) { return null; } }
   async function publicInfo() {
@@ -331,7 +438,7 @@ var PalmSupa = (function () {
       if (/email not confirmed/i.test(m)) throw appErr('AUTH', 'Email belum dikonfirmasi. Buka tautan konfirmasi di kotak masuk email Anda.');
       throw dbErr(r.error, 'login');
     }
-    clearData(); await who(true);
+    OUT = false; clearData(); await who(true);
     var boot = await bootMe(p.device);
     boot.token = 'supabase'; boot.expires_at = r.data.session && r.data.session.expires_at ? new Date(r.data.session.expires_at * 1000).toISOString() : '';
     return boot;
@@ -360,12 +467,13 @@ var PalmSupa = (function () {
     if (action === 'ping') { var en = await engine(); return { app: en.APP.NAME, version: en.APP.VERSION, time: new Date().toISOString(), supabase: STAGE }; }
     if (action === 'publicInfo') return publicInfo();
     if (action === 'login') return login(payload || {});
-    if (action === 'logout') { clearData(); try { await client().auth.signOut(); } catch (e) { } return { ok: true }; }
+    if (action === 'logout') { OUT = true; clearData(); try { await client().auth.signOut(); } catch (e) { } return { ok: true }; }
     if (action === 'me') { await who(true); return bootMe(device); }
-    if (LATER[action]) {
-      if (action === 'aiAsk') throw appErr('STAGE', 'Fitur AI aktif di Tahap 2c edisi Supabase.');
-      throw appErr('STAGE', 'Profil, password, pengaturan & pengguna edisi Supabase aktif di Tahap 2c.');
-    }
+    if (LATER[action]) throw appErr('STAGE', 'MFA edisi Supabase belum tersedia; login dilindungi password Platform Inti. Direncanakan di Tahap 3.');
+    if (action === 'profile') return profile(payload || {});
+    if (action === 'changePw') return changePw(payload || {});
+    if (action === 'userSave') return userSave(payload || {});
+    if (action === 'users') return usersList();
     if (NA[action]) throw appErr('STAGE', 'Tidak diperlukan di edisi Supabase: database tidak dibatasi 10 juta sel, jadi rapikan sel & arsip tahunan tidak perlu.');
     if (action === 'license' && payload && payload.key) throw appErr('STAGE', 'Lisensi edisi Supabase dikelola di Platform Inti (menu Lisensi organisasi), bukan dengan kunci POS1.');
     if (action === 'usage') return usage();

@@ -2948,7 +2948,8 @@ function clearDemo() {
  * - Data tabel dibaca dari penyimpanan memori yang diisi penghubung (supa-api.js) dari Supabase.
  * - Tabel yang belum dimuat dicatat (__MISSED) → penghubung memuatnya lalu mengulang perintah.
  * - Sesi, role, cakupan & lisensi berasal dari Platform Inti (palm_whoami).
- * - Penulisan dicatat (ops) lalu disimpan ke Supabase oleh penghubung (Tahap 2b). */
+ * - Penulisan dicatat (ops) lalu disimpan ke Supabase oleh penghubung (Tahap 2b).
+ * - AI, WhatsApp gateway & email lewat Edge Function palmos-proxy (Tahap 2c). */
 var __SUPA = { user: null, lic: null, org: '', orgName: '', appUrl: '' };
 var __T = {}, __KNOWN = {}, __MISSED = [];
 if (!ROLES.VIEWER) ROLES.VIEWER = { t: 'Viewer (hanya melihat)', all: 'V' };
@@ -2967,7 +2968,26 @@ table_ = function (name) {
 };
 invalidate_ = function (name) { delete _memo['t:' + name]; };
 /* ---- penulisan (Tahap 2b): perubahan dicatat sebagai daftar "ops" lalu disimpan penghubung lewat palm_apply ---- */
-var __OPS = [], __UNDO = {}, __UPL = [];
+var __OPS = [], __UNDO = {}, __UPL = [], __EXT = [], __EXTRES = {}, __FIRE = [];
+/* ---- layanan luar (Tahap 2c): AI dijawab lewat Edge Function palmos-proxy; WA gateway & email dikirim SETELAH data tersimpan ---- */
+function __key(s) { var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return 'k' + h + '_' + s.length; }
+UrlFetchApp = {
+  fetch: function (url, o) {
+    o = o || {}; var req = { url: String(url), method: o.method || 'get', headers: o.headers || {}, payload: o.payload === undefined ? null : o.payload, contentType: o.contentType || '' };
+    if (/generativelanguage\.googleapis\.com/.test(req.url)) {
+      var k = __key(JSON.stringify(req)), r = __EXTRES[k];
+      if (!r) { __EXT.push({ key: k, req: req }); var e = new Error('Menunggu layanan AI'); e.code = 'EXT'; throw e; }
+      return { getResponseCode: function () { return r.status; }, getContentText: function () { return r.text; } };
+    }
+    __FIRE.push({ kind: 'http', req: req });
+    return { getResponseCode: function () { return 200; }, getContentText: function () { return '{"status":true,"queued":true}'; } };
+  }
+};
+MailApp = { sendEmail: function (a, b, c) { var m = typeof a === 'object' ? a : { to: a, subject: b, body: c }; __FIRE.push({ kind: 'mail', mail: { to: m.to, subject: m.subject, text: m.body || '', html: m.htmlBody || '' } }); }, getRemainingDailyQuota: function () { return 100; } };
+(function () { var P = PropertiesService.getScriptProperties(), g = P.getProperty;
+  PropertiesService.getScriptProperties = function () { return { getProperty: function (k) { if (k === 'GEMINI_API_KEY') return '__SECRET:GEMINI_API_KEY__'; return g(k); }, setProperty: P.setProperty, deleteProperty: P.deleteProperty }; };
+})();
+function __setExt(json) { var m = JSON.parse(json); Object.keys(m).forEach(function (k) { __EXTRES[k] = m[k]; }); }
 function __clean(obj) {
   var o = {};
   Object.keys(obj).forEach(function (k) {
@@ -3018,8 +3038,8 @@ apiNotifs = function (ctx, p) {
   }
   return table_(SYS.NOTIF).rows.filter(function (n) { return n.user === ctx.user.username; }).slice(-50).reverse();
 };
-function __undo() { Object.keys(__UNDO).forEach(function (n) { if (__UNDO[n]) __T[n] = __UNDO[n]; else delete __T[n]; }); __UNDO = {}; __OPS = []; __UPL = []; }
-function __commit() { __UNDO = {}; __OPS = []; __UPL = []; }
+function __undo() { Object.keys(__UNDO).forEach(function (n) { if (__UNDO[n]) __T[n] = __UNDO[n]; else delete __T[n]; }); __UNDO = {}; __OPS = []; __UPL = []; __EXT = []; __FIRE = []; }
+function __commit() { __UNDO = {}; __OPS = []; __UPL = []; __EXT = []; __FIRE = []; __EXTRES = {}; }
 /* setelah unggah: ganti penanda @@UPLOAD:path@@ dengan alamat file */
 function __fixUploads(json) {
   var map = JSON.parse(json);
@@ -3057,6 +3077,6 @@ function __loaded() { return Object.keys(__T); }
 function __run(action, payload, device) {
   __undo(); __MISSED = []; _memo = {};
   var s = rpc(action, 'supabase', payload ? JSON.parse(payload) : {}, device || '');
-  return JSON.stringify({ s: s, missed: __MISSED.slice(), ops: __OPS.slice(), uploads: __UPL.slice() });
+  return JSON.stringify({ s: s, missed: __MISSED.slice(), ops: __OPS.slice(), uploads: __UPL.slice(), ext: __EXT.slice(), fire: __FIRE.slice() });
 }
 window.__engineReady = true;
