@@ -45,7 +45,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
 
   // Aplikasi UMG (/umg/) & SPMS (/spms/) punya penyimpanan offline sendiri — jangan disentuh
-  if (url.origin === self.location.origin && (url.pathname.includes('/umg/') || url.pathname.includes('/spms/'))) return;
+  if (url.origin === self.location.origin && (url.pathname.includes('/umg/') || url.pathname.includes('/spms/') || url.pathname.includes('/palmos/'))) return;
 
   // Logo & foto profil publik dari Supabase Storage: simpan agar tampil saat offline
   if (url.pathname.includes('/storage/v1/object/public/')) {
