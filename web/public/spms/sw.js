@@ -3,14 +3,14 @@
  * - Data Supabase TIDAK di-cache di sini (antrean offline ada di aplikasi).
  * - Peta jalan OSM yang pernah dilihat disimpan (maks 2500 ubin); citra Esri TIDAK disimpan (ketentuan Esri).
  * Nama cache diawali "spms-" agar tidak bentrok dengan Beranda Platform Inti / UMG di domain yang sama. */
-var BUILD = '130-1';
+var BUILD = '131-1';
 var SHELL = 'spms-shell-' + BUILD, CDN = 'spms-cdn-v1', TILES = 'spms-tiles-v1', MAX_TILES = 2500;
 var V = '?v=' + BUILD;
 var SHELL_FILES = ['./', './index.html', './lapangan.html', './manifest.json', './icon-192.png', './icon-512.png',
   './config.js' + V, './supabase.js' + V, './engine.js' + V, './supa-api.js' + V];
 var CDN_FILES = ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', 'https://unpkg.com/pmtiles@4.5.0/dist/pmtiles.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js',
-  'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js'];
+  'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'];
 var CDN_HOSTS = ['unpkg.com', 'cdnjs.cloudflare.com', 'cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 var TILE_HOSTS = ['tile.openstreetmap.org', 'tile.opentopomap.org'];
 

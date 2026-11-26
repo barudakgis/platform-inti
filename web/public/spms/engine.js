@@ -108,7 +108,7 @@
  */
 var APP = {
   NAME: 'KebunRakyat SPMS',
-  VERSION: '1.3.0',
+  VERSION: '1.3.1',
   BUILD: '2026-11-26',
   SCHEMA_VERSION: 1,
   CELL_LIMIT: 45000,          // batas aman (< 50.000 karakter per sel)

@@ -194,12 +194,12 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}.tbl th{position:st
   <div id="lightbox" class="hidden"><div class="lb-stage"><img id="lbImg" alt=""></div>
     <div class="lb-bar"><button onclick="UI.zoomBy(1.3)">＋</button><button onclick="UI.zoomBy(1/1.3)">－</button><button onclick="UI.zoomReset()">⟲</button><button onclick="UI.zoomClose()">✕</button></div></div>
 
-  <script src="config.js?v=130-1"></script>
-<script src="supabase.js?v=130-1"></script>
-<script src="engine.js?v=130-1"></script>
-<script src="supa-api.js?v=130-1"></script>
+  <script src="config.js?v=131-1"></script>
+<script src="supabase.js?v=131-1"></script>
+<script src="engine.js?v=131-1"></script>
+<script src="supa-api.js?v=131-1"></script>
 <script>if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(function () {});</script>
-<script>window.BOOT = {"version": "1.3.0 \u00b7 Supabase", "build": "130-1", "name": "KebunRakyat SPMS", "brand": {"title": "KebunRakyat SPMS", "subtitle": "Manajemen Perkebunan Rakyat"}};</script>
+<script>window.BOOT = {"version": "1.3.1 \u00b7 Supabase", "build": "131-1", "name": "KebunRakyat SPMS", "brand": {"title": "KebunRakyat SPMS", "subtitle": "Manajemen Perkebunan Rakyat"}};</script>
   <script>
 /* ===== JsCore: state, API, router (tombol Back), tema, login/logout ===== */
 'use strict';
@@ -768,7 +768,8 @@ function loadScript(src) {
   return (window._ls[src] = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = function () { delete window._ls[src]; rej(new Error('Gagal memuat pustaka: ' + src)); }; document.head.appendChild(s); }));
 }
 var LIB = { leaflet: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', jspdf: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
-  qrgen: 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js', jsqr: 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js' };
+  qrgen: 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js', jsqr: 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js',
+  pdfjs: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', pdfjsWorker: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js' };
 </script>
 
   <script>
@@ -1549,7 +1550,8 @@ MapV.drawLayers = function () {
     }).addTo(map);
   }
   if (MapV.st.trees && d.trees.length) {
-    var g = L.layerGroup(), mode = MapV.st.tmode, parcelsOk = {};   // satu kanvas untuk bidang & pohon: klik di dalam bidang tetap membuka info bidang feats.forEach(function (f) { parcelsOk[f.properties.id] = 1; });
+    // satu kanvas untuk bidang & pohon (pohon digambar SETELAH bidang → di atas), sehingga klik di dalam bidang tetap membuka info bidang
+    var g = L.layerGroup(), mode = MapV.st.tmode, parcelsOk = {}; feats.forEach(function (f) { parcelsOk[f.properties.id] = 1; });
     var useOrg = S.boot.scope === 'all' && S.orgId;
     d.trees.forEach(function (t) {
       if (useOrg && !parcelsOk[t[7]]) return;
@@ -2675,12 +2677,15 @@ var MapPrint = {
       '<div class="full"><label>Catatan / sumber data</label><textarea id="mpN">Sumber: database SPMS (survei lapangan & digitasi). Peta operasional — bukan dokumen penetapan batas hukum.</textarea></div>' +
       '<div class="full row"><label class="chk"><input type="checkbox" id="mpG" checked> Grid koordinat</label><label class="chk"><input type="checkbox" id="mpI" checked> Peta indeks (inset)</label><label class="chk"><input type="checkbox" id="mpB" checked> Peta dasar</label><label class="chk"><input type="checkbox" id="mpL" checked> Label bidang</label><label class="chk"><input type="checkbox" id="mpLg" checked> Logo</label></div></div>' +
       '<h3>Legenda <span class="tiny muted">(ubah teks, warna, simbol; urutkan)</span></h3><div class="legend-ed" id="mpLeg"></div><div class="row"><button class="ghost sm" id="mpAdd">+ Item</button><button class="ghost sm" id="mpRst">Reset dari layer</button></div><p id="mpInfo" class="tiny muted"></p>', { wide: true,
-      actions: [{ label: 'Batal' }, { label: ic('print') + ' Buat PDF', cls: 'primary', onClick: function (el, close, btn) {
+      actions: [{ label: 'Batal' }, { label: ic('print') + ' Langsung unduh', onClick: function (el, close, btn) {
         btn.disabled = true; btn.textContent = 'Menyusun peta…';
-        MapPrint.make({ paper: $('#mpPa').value, orient: $('#mpOr').value, title: $('#mpT').value, sub: $('#mpS').value, scale: $('#mpSc').value, dpi: Number($('#mpDpi').value), author: $('#mpA').value, date: $('#mpD').value, note: $('#mpN').value,
-          grid: $('#mpG').checked, inset: $('#mpI').checked, base: $('#mpB').checked, labels: $('#mpL').checked, logo: $('#mpLg').checked })
-          .then(function (w) { if (w) UI.toast(w, 'warn', 7000); close(); }).catch(function (e) { UI.toast('Gagal membuat PDF: ' + e.message, 'bad'); btn.disabled = false; btn.innerHTML = ic('print') + ' Buat PDF'; });
+        MapPrint.make(opts()).then(function (w) { if (w) UI.toast(w, 'warn', 7000); close(); }).catch(function (e) { UI.toast('Gagal membuat PDF: ' + e.message, 'bad'); btn.disabled = false; btn.innerHTML = ic('print') + ' Langsung unduh'; });
+      } }, { label: ic('eye') + ' Pratinjau', cls: 'primary', onClick: function (el, close, btn) {
+        btn.disabled = true; btn.textContent = 'Menyusun pratinjau…';
+        MapPrint.preview(opts(), close).then(function () { btn.disabled = false; btn.innerHTML = ic('eye') + ' Pratinjau'; }).catch(function (e) { UI.toast('Gagal membuat pratinjau: ' + e.message, 'bad'); btn.disabled = false; btn.innerHTML = ic('eye') + ' Pratinjau'; });
       } }] });
+    var opts = function () { return { paper: $('#mpPa').value, orient: $('#mpOr').value, title: $('#mpT').value, sub: $('#mpS').value, scale: $('#mpSc').value, dpi: Number($('#mpDpi').value), author: $('#mpA').value, date: $('#mpD').value, note: $('#mpN').value,
+      grid: $('#mpG').checked, inset: $('#mpI').checked, base: $('#mpB').checked, labels: $('#mpL').checked, logo: $('#mpLg').checked }; };
     var drawLeg = function () {
       $('#mpLeg').innerHTML = MapPrint.legend.map(function (r, i) { return '<div class="lr"><select data-i="' + i + '" data-k="t" style="padding:4px;min-height:34px">' + [['fill', '▭'], ['line', '—'], ['point', '●'], ['ring', '◯']].map(function (o) { return '<option value="' + o[0] + '"' + (r.t === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>' +
         '<input data-i="' + i + '" data-k="l" value="' + esc(r.l) + '"><input type="color" data-i="' + i + '" data-k="c" value="' + r.c + '"><div class="row" style="gap:2px;flex-wrap:nowrap"><button class="ghost sm" data-up="' + i + '">↑</button><button class="ghost sm" data-del="' + i + '">✕</button></div></div>'; }).join('');
@@ -2695,6 +2700,30 @@ var MapPrint = {
   proj: function (lat, lng, z) { var s = 256 * Math.pow(2, z), sin = Math.sin(lat * Math.PI / 180); return [(lng + 180) / 360 * s, (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * s]; },
   unproj: function (x, y, z) { var s = 256 * Math.pow(2, z), n = Math.PI - 2 * Math.PI * y / s; return [x / s * 360 - 180, 180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)))]; },
   /** render peta dasar + vektor ke canvas W×H piksel pada pusat & zoom pecahan */
+  /** Pratinjau: PDF yang SAMA PERSIS dengan hasil unduhan, ditampilkan sebagai gambar halaman (pdf.js) sebelum diunduh. */
+  preview: function (o, closeOpts) {
+    var p = Object.assign({}, o, { preview: true });
+    return MapPrint.make(p).then(function (res) {
+      var paperTxt = o.paper + ' ' + (o.orient === 'p' ? 'potret' : 'lanskap');
+      var m = UI.modal('Pratinjau cetak peta', '<p class="tiny muted" id="pvInfo">' + esc(paperTxt) + ' · skala 1 : ' + Number(res.scale).toLocaleString('id-ID') + ' · ' + o.dpi + ' dpi' + (res.warn ? '<br><span style="color:#b9770e">⚠ ' + esc(res.warn) + '</span>' : '') + '</p>' +
+        '<div id="pvBox" style="background:#7b847f;border-radius:10px;padding:10px;text-align:center;min-height:160px"><p style="color:#fff">Menyiapkan pratinjau…</p></div>' +
+        '<p class="tiny muted" style="margin-top:6px">Periksa judul, area peta, legenda & skala. Bila perlu diubah, tekan <b>‹ Ubah pengaturan</b> (geser/zoom peta dulu bila area kurang pas).</p>',
+        { wide: true, actions: [{ label: '‹ Ubah pengaturan' }, { label: ic('dl') + ' Unduh PDF', cls: 'primary', onClick: function (el, close) { res.doc.save(res.name); UI.toast('PDF diunduh: ' + res.name, 'ok'); close(); setTimeout(function () { closeOpts && closeOpts(); }, 250); } }] });
+      var box = $('#pvBox', m.el), ab = res.doc.output('arraybuffer');
+      return loadScript(LIB.pdfjs).then(function () { return loadScript(LIB.pdfjsWorker); }).then(function () {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = LIB.pdfjsWorker;   // pustaka pekerja sudah dimuat → dijalankan di halaman (tanpa Web Worker)
+        return window.pdfjsLib.getDocument({ data: new Uint8Array(ab), isEvalSupported: false }).promise;
+      }).then(function (pdf) { return pdf.getPage(1); }).then(function (page) {
+        var w = Math.max(280, box.clientWidth - 20), v0 = page.getViewport({ scale: 1 }), dpr = Math.min(2.5, window.devicePixelRatio || 1) * 1.4;
+        var vp = page.getViewport({ scale: w / v0.width * dpr }), cv = document.createElement('canvas');
+        cv.width = vp.width; cv.height = vp.height; cv.style.width = '100%'; cv.style.maxWidth = w + 'px'; cv.style.background = '#fff'; cv.style.boxShadow = '0 4px 18px rgba(0,0,0,.35)'; cv.id = 'pvCanvas';
+        return page.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise.then(function () { box.innerHTML = ''; box.appendChild(cv); });
+      }).catch(function () {   // cadangan bila pdf.js tidak termuat: tampilkan PDF langsung (komputer)
+        var url = URL.createObjectURL(new Blob([ab], { type: 'application/pdf' }));
+        box.innerHTML = '<iframe src="' + url + '" style="width:100%;height:65vh;border:0;background:#fff"></iframe><p class="tiny" style="color:#fff">Bila pratinjau kosong (sebagian HP), langsung tekan Unduh PDF.</p>';
+      });
+    });
+  },
   render: function (W, H, c, z, opt) {
     var cv = document.createElement('canvas'); cv.width = W; cv.height = H; var g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
     var cp = MapPrint.proj(c[0], c[1], z), ox = cp[0] - W / 2, oy = cp[1] - H / 2;
@@ -2825,7 +2854,9 @@ var MapPrint = {
             var lines = []; info.forEach(function (t) { lines = lines.concat(doc.splitTextToSize(t, colW - 6)); });
             doc.text(lines, ix + 3, iy + 2);
             var nt = doc.splitTextToSize(o.note || '', colW - 6); doc.setTextColor(90); doc.text(nt.slice(0, 4), ix + 3, iy + 2 + lines.length * 2.7 + 1.5);
-            doc.save((o.title || 'Peta').replace(/[^\w\-]+/g, '_') + '_' + o.paper + '.pdf');
+            var fname = (o.title || 'Peta').replace(/[^\w\-]+/g, '_') + '_' + o.paper + '.pdf';
+            if (o.preview) return { warn: warn, doc: doc, name: fname, scale: scaleN };
+            doc.save(fname);
             return warn;
           };
           if (!o.inset) return finish();
@@ -2962,7 +2993,7 @@ Router.reg('about', { render: function (el) {
   el.innerHTML = vh('Tentang Aplikasi') + '<div class="grid g2"><div class="card"><div class="row" style="gap:14px"><img src="' + (S.boot.settings.brand.logo || App.defLogo()) + '" style="width:72px;height:72px;border-radius:16px;cursor:zoom-in" onclick="UI.zoom(this.src)"><div><h2 style="margin:0">' + esc(S.boot.settings.brand.title) + '</h2><div class="muted">' + esc(a.name) + '</div></div></div>' +
     '<div class="pop-r" style="margin-top:12px"><span>Versi aplikasi</span><b>' + esc(a.version) + '</b></div><div class="pop-r"><span>Build</span><b>' + esc(a.build) + '</b></div><div class="pop-r"><span>Lisensi</span><b>' + esc(L.label) + (L.exp ? ' · s/d ' + fdate(L.exp) : '') + '</b></div><div class="pop-r"><span>ID instalasi</span><b>' + esc(L.install_id) + '</b></div>' +
     '<div class="pop-r"><span>Antrean offline</span><b>' + S.queue.length + ' data</b></div><div class="row" style="margin-top:12px"><button class="btn" onclick="Legal.show(\'terms\')">Syarat & Ketentuan</button><button class="btn" onclick="Legal.show(\'privacy\')">Pemberitahuan Privasi</button>' + (S.queue.length ? '<button class="btn primary" onclick="Sync.flush()">Sinkronkan sekarang</button>' : '') + '</div></div>' +
-    '<div class="card"><h3>Riwayat versi</h3><p><b>1.3.0</b> — peta: info lengkap bidang saat diklik (luas, keliling, petani, kebun, jumlah pohon) &amp; tombol Zoom ke bidang / layer / foto udara; Data Pohon: pilih banyak sekaligus, hapus terpilih, geser posisi pohon di peta (seret atau panah per 0,2–5 m, cocok untuk foto udara); foto: ubah kategori/keterangan &amp; hapus foto salah unggah.</p><p><b>1.2.1</b> — perbaikan: peta tidak error bila ada laporan hama tanpa koordinat; kode pohon otomatis (grid tanam / impor SHP) melanjutkan nomor terbesar sehingga tidak bentrok; ekspor GeoJSON tanpa fitur kosong; siap pindah foto ke Supabase.</p><p><b>1.2.0</b> — impor/ekspor Shapefile (SHP) di peta, impor/ekspor Excel di semua tabel data, pratinjau grid tanam langsung di peta, perbaikan simpan grid &amp; unggah foto/video/PDF untuk Super Admin, label koordinat cetak peta tidak terpotong, tombol Tes koneksi AI.</p><p><b>1.1.0</b> — layer foto udara drone PMTiles (online URL &amp; offline file besar), ortho ikut tercetak di PDF, menu Mode Lapangan, tombol mengambang PWA dapat digeser/diciutkan/disembunyikan.</p><p><b>1.0.0</b> (' + esc(a.build) + ') — rilis awal: multi-tenant RBAC, survei GPS/GNSS/RTK, peta GIS, digital tree + QR, dokumentasi, operasional, panen, inventori, keuangan double-entry, AI assistant, cetak peta PDF, PWA offline.</p>' +
+    '<div class="card"><h3>Riwayat versi</h3><p><b>1.3.1</b> — perbaikan: titik pohon kembali tampil di atas bidang lahan; cetak peta PDF kini dengan <b>pratinjau</b> halaman sebelum diunduh.</p><p><b>1.3.0</b> — peta: info lengkap bidang saat diklik (luas, keliling, petani, kebun, jumlah pohon) &amp; tombol Zoom ke bidang / layer / foto udara; Data Pohon: pilih banyak sekaligus, hapus terpilih, geser posisi pohon di peta (seret atau panah per 0,2–5 m, cocok untuk foto udara); foto: ubah kategori/keterangan &amp; hapus foto salah unggah.</p><p><b>1.2.1</b> — perbaikan: peta tidak error bila ada laporan hama tanpa koordinat; kode pohon otomatis (grid tanam / impor SHP) melanjutkan nomor terbesar sehingga tidak bentrok; ekspor GeoJSON tanpa fitur kosong; siap pindah foto ke Supabase.</p><p><b>1.2.0</b> — impor/ekspor Shapefile (SHP) di peta, impor/ekspor Excel di semua tabel data, pratinjau grid tanam langsung di peta, perbaikan simpan grid &amp; unggah foto/video/PDF untuk Super Admin, label koordinat cetak peta tidak terpotong, tombol Tes koneksi AI.</p><p><b>1.1.0</b> — layer foto udara drone PMTiles (online URL &amp; offline file besar), ortho ikut tercetak di PDF, menu Mode Lapangan, tombol mengambang PWA dapat digeser/diciutkan/disembunyikan.</p><p><b>1.0.0</b> (' + esc(a.build) + ') — rilis awal: multi-tenant RBAC, survei GPS/GNSS/RTK, peta GIS, digital tree + QR, dokumentasi, operasional, panen, inventori, keuangan double-entry, AI assistant, cetak peta PDF, PWA offline.</p>' +
     '<h3>Komponen pihak ketiga</h3><ul class="tiny"><li>Leaflet 1.9.4 — BSD-2-Clause</li><li>jsPDF 2.5.1 — MIT</li><li>qrcode-generator 1.4.4 — MIT</li><li>jsQR 1.4.0 — Apache-2.0</li><li>PMTiles 4.5.0 (Protomaps) — BSD-3-Clause</li><li>Font Inter — SIL Open Font License 1.1</li><li>Data peta © OpenStreetMap contributors (ODbL); tiles OpenTopoMap (CC-BY-SA); citra © Esri & penyedia (sesuai ketentuan Esri)</li></ul>' +
     '<p class="tiny muted">Ikon antarmuka digambar khusus untuk aplikasi ini.</p></div></div>';
 } });
