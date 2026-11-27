@@ -111,6 +111,11 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}.tbl th{position:st
 /* lightbox */
 #lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:95;touch-action:none}.lb-stage{position:absolute;inset:0;overflow:hidden;display:flex;align-items:center;justify-content:center}
 .gal figure{position:relative}.gal .med-ed{position:absolute;top:4px;right:4px;background:rgba(255,255,255,.92);border-radius:8px;min-height:30px;padding:3px 6px;box-shadow:0 1px 4px rgba(0,0,0,.25)}
+.gps-me{position:relative;width:44px;height:44px}.gps-me .gps-dot{position:absolute;left:14px;top:14px;width:16px;height:16px;border-radius:50%;background:#1a73e8;border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.2),0 1px 4px rgba(0,0,0,.35)}
+.gps-me .gps-arrow{position:absolute;left:0;top:0;width:44px;height:44px;transform-origin:22px 22px;transition:transform .25s linear;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
+.gps-chip{top:10px;left:10px;display:flex;align-items:center;gap:6px;padding:5px 6px 5px 10px;font-size:12px;max-width:calc(100% - 90px);flex-wrap:wrap}.gps-chip .btn{min-height:30px;padding:3px 9px}.gps-acc{font-weight:600;display:flex;align-items:center;gap:4px}
+.leaflet-control-attribution.attr-compact{font-size:9.5px;line-height:1.35;max-width:46vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;padding:1px 6px;border-radius:6px 0 0 0;opacity:.85}
+.leaflet-control-attribution.attr-compact.open{white-space:normal;max-width:80vw;opacity:1}.leaflet-control-scale-line{font-size:10px;padding:0 4px;line-height:1.4}
 .selbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--card);border:1px solid var(--pri2);border-radius:10px;padding:6px 10px;margin-bottom:8px;position:sticky;top:0;z-index:5}.selbar .btn{min-height:32px}input.selc{width:18px;height:18px;min-height:0;margin:0;cursor:pointer}.tbl tr.sel td{background:rgba(47,122,75,.10)}
 #lbImg{max-width:92vw;max-height:84vh;transform-origin:center;transition:transform .05s;user-select:none;-webkit-user-drag:none}
 .lb-bar{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);display:flex;gap:8px}.lb-bar button{width:46px;height:46px;border-radius:50%;border:0;background:rgba(255,255,255,.18);color:#fff;font-size:20px;cursor:pointer}
@@ -118,7 +123,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}.tbl th{position:st
 #mapWrap{position:relative;height:calc(100vh - var(--hdr));isolation:isolate;z-index:0}@media (max-width:900px){#mapWrap{height:calc(100vh - var(--hdr) - 62px)}}
 #map{position:absolute;inset:0}
 .map-panel{position:absolute;z-index:500;background:var(--card);border:1px solid var(--bd);border-radius:14px;box-shadow:var(--sh);padding:10px}
-.map-tools{top:10px;right:10px;display:flex;flex-direction:column;gap:6px;padding:6px;max-height:calc(100% - 20px - var(--sbh,0px));overflow-y:auto}
+.map-tools{top:10px;right:10px;display:flex;flex-direction:column;gap:6px;padding:6px;max-height:calc(100% - 44px - var(--sbh,0px));overflow-y:auto}
 .map-tools button{width:40px;height:40px;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--tx);cursor:pointer;display:flex;align-items:center;justify-content:center}
 .map-tools button.on{background:var(--pri);color:#fff;border-color:var(--pri)}
 .map-layers{top:10px;left:56px;max-width:min(320px,calc(100vw - 120px));max-height:calc(100% - 20px);overflow:auto;font-size:13px}
@@ -194,12 +199,12 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}.tbl th{position:st
   <div id="lightbox" class="hidden"><div class="lb-stage"><img id="lbImg" alt=""></div>
     <div class="lb-bar"><button onclick="UI.zoomBy(1.3)">＋</button><button onclick="UI.zoomBy(1/1.3)">－</button><button onclick="UI.zoomReset()">⟲</button><button onclick="UI.zoomClose()">✕</button></div></div>
 
-  <script src="config.js?v=132-1"></script>
-<script src="supabase.js?v=132-1"></script>
-<script src="engine.js?v=132-1"></script>
-<script src="supa-api.js?v=132-1"></script>
+  <script src="config.js?v=133-1"></script>
+<script src="supabase.js?v=133-1"></script>
+<script src="engine.js?v=133-1"></script>
+<script src="supa-api.js?v=133-1"></script>
 <script>if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(function () {});</script>
-<script>window.BOOT = {"version": "1.3.2 \u00b7 Supabase", "build": "132-1", "name": "KebunRakyat SPMS", "brand": {"title": "KebunRakyat SPMS", "subtitle": "Manajemen Perkebunan Rakyat"}};</script>
+<script>window.BOOT = {"version": "1.3.3 \u00b7 Supabase", "build": "133-1", "name": "KebunRakyat SPMS", "brand": {"title": "KebunRakyat SPMS", "subtitle": "Manajemen Perkebunan Rakyat"}};</script>
   <script>
 /* ===== JsCore: state, API, router (tombol Back), tema, login/logout ===== */
 'use strict';
@@ -1437,6 +1442,27 @@ var Geo = {
       var a = o(r[i], r[i + 1], r[j]), b = o(r[i], r[i + 1], r[j + 1]), c = o(r[j], r[j + 1], r[i]), d = o(r[j], r[j + 1], r[i + 1]); if (a && b && c && d && a !== b && c !== d) return true; }
     return false;
   },
+  /** Rapikan jejak GPS yang berpotongan sendiri: setiap simpul (loop) dipotong di titik silangnya; bagian yang lebih luas dipertahankan.
+   *  Dipakai untuk jejak otomatis yang "goyang" (GPS HP) — titik asli tetap disimpan apa adanya. → { ring, fixed } */
+  fixLoops: function (ring) {
+    var r = ring.slice(); if (r.length < 4) return { ring: ring, fixed: 0 };
+    if (r[0][0] === r[r.length - 1][0] && r[0][1] === r[r.length - 1][1]) r.pop();
+    var o = function (a, b, c) { var v = (b[1] - a[1]) * (c[0] - b[0]) - (b[0] - a[0]) * (c[1] - b[1]); return Math.abs(v) < 1e-14 ? 0 : v > 0 ? 1 : 2; };
+    var X = function (p1, p2, p3, p4) { var d = (p1[0] - p2[0]) * (p3[1] - p4[1]) - (p1[1] - p2[1]) * (p3[0] - p4[0]); if (!d) return null; var t = ((p1[0] - p3[0]) * (p3[1] - p4[1]) - (p1[1] - p3[1]) * (p3[0] - p4[0])) / d; return [p1[0] + t * (p2[0] - p1[0]), p1[1] + t * (p2[1] - p1[1])]; };
+    var area = function (q) { return Geo.measure(q).area; }, fixed = 0;
+    for (var guard = 0; guard < 500; guard++) {
+      var c = r.concat([r[0]]), n = c.length, hit = null;
+      for (var i = 0; i < n - 1 && !hit; i++) for (var j = i + 2; j < n - 1; j++) { if (i === 0 && j === n - 2) continue;
+        var a = o(c[i], c[i + 1], c[j]), b = o(c[i], c[i + 1], c[j + 1]), d1 = o(c[j], c[j + 1], c[i]), d2 = o(c[j], c[j + 1], c[i + 1]);
+        if (a && b && d1 && d2 && a !== b && d1 !== d2) { hit = [i, j]; break; } }
+      if (!hit) break;
+      var P = X(c[hit[0]], c[hit[0] + 1], c[hit[1]], c[hit[1] + 1]); if (!P) break;
+      var A = c.slice(0, hit[0] + 1).concat([P], c.slice(hit[1] + 1, n - 1)), B = [P].concat(c.slice(hit[0] + 1, hit[1] + 1));
+      r = (B.length >= 3 && (A.length < 3 || area(B) > area(A))) ? B : A; fixed++;
+      if (r.length < 3) return { ring: ring, fixed: 0 };
+    }
+    return { ring: r, fixed: fixed };
+  },
   pip: function (pt, ring) { var x = pt[0], y = pt[1], ins = false; for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) { var xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1]; if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) ins = !ins; } return ins; },
   rings: function (g) { if (!g) return []; if (typeof g === 'string') try { g = JSON.parse(g); } catch (e) { return []; } if (g.type === 'Feature') g = g.geometry; return g.type === 'Polygon' ? [g.coordinates[0]] : g.type === 'MultiPolygon' ? g.coordinates.map(function (p) { return p[0]; }) : []; },
   once: function (timeout) {
@@ -1497,7 +1523,7 @@ Router.reg('map', { perm: 'gis', full: true, leave: function () { MapV.stopTool(
 MapV.init = function (p) {
   var s = S.boot.settings.map; MapV._fitted = 0; MapV.tool = null;
   var map = MapV.map = L.map('map', { zoomControl: false, preferCanvas: true, maxZoom: 22 }).setView(s.center, s.zoom);
-  L.control.zoom({ position: 'bottomleft' }).addTo(map); L.control.scale({ imperial: false, position: 'bottomright' }).addTo(map);
+  L.control.zoom({ position: 'bottomleft' }).addTo(map); L.control.scale({ imperial: false, position: 'bottomleft', maxWidth: 90 }).addTo(map); compactAttribution(map);
   MapV.setBase(MapV.st.base);
   var tools = [['layers', 'Layer & legenda', function () { $('#mLay').classList.toggle('hidden'); }], ['locate', 'Posisi saya / ikuti GPS', function (b) { Track.toggleFollow(map, b); }],
     ['zoom', 'Zoom ke bidang / layer', MapV.zoomMenu], ['search', 'Cari / perintah AI', MapV.search], ['ruler', 'Ukur jarak/luas', function (b) { MapV.toolMeasure(b); }]];
@@ -1842,21 +1868,84 @@ MapV.ggPreview = function (b) {
   };
 };
 
-/* ---------- Pelacakan GPS (ikuti posisi) ---------- */
-var Track = {
-  watch: null, marker: null, circle: null,
-  toggleFollow: function (map, btn) {
-    if (Track.watch !== null) { Track.stopFollow(); btn && btn.classList.remove('on'); return; }
-    if (!navigator.geolocation) return UI.toast('GPS tidak tersedia.', 'bad');
-    btn && btn.classList.add('on');
-    Track.watch = navigator.geolocation.watchPosition(function (p) {
-      var ll = [p.coords.latitude, p.coords.longitude];
-      if (!Track.marker) { Track.marker = L.circleMarker(ll, { radius: 8, color: '#fff', weight: 3, fillColor: '#1a73e8', fillOpacity: 1 }).addTo(map); Track.circle = L.circle(ll, { radius: p.coords.accuracy, color: '#1a73e8', weight: 1, fillOpacity: .1 }).addTo(map); map.setView(ll, Math.max(map.getZoom(), 18)); }
-      else { Track.marker.setLatLng(ll); Track.circle.setLatLng(ll).setRadius(p.coords.accuracy); map.panTo(ll, { animate: true }); }
-    }, function (e) { UI.toast('GPS: ' + e.message, 'bad'); }, { enableHighAccuracy: true, maximumAge: 1000 });
+/** Teks sumber peta (Leaflet/Esri) diringkas jadi satu baris kecil; ketuk ⓘ untuk melihat lengkap — tidak menutupi tombol & skala */
+function compactAttribution(map) {
+  var a = map.attributionControl; if (!a) return; a.setPrefix('<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>');
+  var el = a.getContainer(); el.classList.add('attr-compact');
+  L.DomEvent.on(el, 'click', function (e) { if (e.target.tagName === 'A') return; el.classList.toggle('open'); L.DomEvent.stop(e); });
+}
+/* ---------- Penunjuk arah (kompas perangkat) + titik GPS dengan panah, dipakai Peta & Ukur Lahan ---------- */
+var Compass = {
+  heading: null, subs: [], on: false,
+  start: function () {
+    if (Compass.on) return; Compass.on = true;
+    var h = function (e) {
+      var v = null;
+      if (typeof e.webkitCompassHeading === 'number') v = e.webkitCompassHeading;                       // iPhone/iPad
+      else if (e.absolute && typeof e.alpha === 'number') v = 360 - e.alpha;                             // Android (deviceorientationabsolute)
+      if (v === null) return;
+      var so = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : (window.orientation || 0);
+      Compass.set((v + so + 360) % 360, 'kompas');
+    };
+    var bind = function () { if ('ondeviceorientationabsolute' in window) window.addEventListener('deviceorientationabsolute', h); else window.addEventListener('deviceorientation', h); };
+    bind();
+    if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function')   // iOS: wajib izin dari ketukan pengguna (data mengalir setelah diizinkan)
+      DeviceOrientationEvent.requestPermission().catch(function () {});
   },
-  stopFollow: function () { if (Track.watch !== null) navigator.geolocation.clearWatch(Track.watch); Track.watch = null; if (Track.marker && MapV.map) { MapV.map.removeLayer(Track.marker); MapV.map.removeLayer(Track.circle); } Track.marker = Track.circle = null; }
+  set: function (deg, src) { if (deg === null || isNaN(deg)) return; Compass.heading = Math.round(deg); Compass.src = src; Compass.subs.forEach(function (f) { try { f(Compass.heading); } catch (e) { /* abaikan */ } }); },
+  sub: function (f) { Compass.subs.push(f); if (Compass.heading !== null) f(Compass.heading); return function () { Compass.subs = Compass.subs.filter(function (x) { return x !== f; }); }; }
 };
+/** Titik "posisi saya": bulatan biru + panah kecil arah hadap perangkat + lingkaran akurasi */
+function GpsMe(map) {
+  var icon = L.divIcon({ className: '', iconSize: [44, 44], iconAnchor: [22, 22],
+    html: '<div class="gps-me"><svg class="gps-arrow" viewBox="0 0 44 44" style="display:none"><path d="M22 2 L29 15 L22 12 L15 15 Z" fill="#1a73e8" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg><div class="gps-dot"></div></div>' });
+  var me = { mk: null, acc: null, ll: null };
+  var turn = function (deg) { var el = me.mk && me.mk.getElement && me.mk.getElement(); var a = el && el.querySelector('.gps-arrow'); if (a) { a.style.display = 'block'; a.style.transform = 'rotate(' + deg + 'deg)'; } };
+  var unsub = Compass.sub(turn);
+  me.update = function (lat, lng, acc, gpsHeading, speed) {
+    me.ll = [lat, lng];
+    if (!me.mk) { me.acc = L.circle(me.ll, { radius: acc || 0, color: '#1a73e8', weight: 1, fillOpacity: .08, interactive: false }).addTo(map); me.mk = L.marker(me.ll, { icon: icon, interactive: false, zIndexOffset: 900, keyboard: false }).addTo(map); if (Compass.heading !== null) setTimeout(function () { turn(Compass.heading); }, 0); }
+    else { me.mk.setLatLng(me.ll); me.acc.setLatLng(me.ll).setRadius(acc || 0); }
+    if ((Compass.src !== 'kompas' || Compass.heading === null) && typeof gpsHeading === 'number' && !isNaN(gpsHeading) && speed > 0.7) Compass.set(gpsHeading, 'gps');   // tanpa kompas: arah gerak
+  };
+  me.remove = function () { unsub(); if (me.mk) { map.removeLayer(me.mk); map.removeLayer(me.acc); } me.mk = me.acc = null; };
+  return me;
+}
+
+/* ---------- Pelacakan GPS di Peta: GPS nyala/mati + "ikuti posisi" (auto-center) nyala/mati ---------- */
+var Track = {
+  watch: null, me: null, follow: true, chip: null, last: null,
+  toggleFollow: function (map, btn) {
+    if (Track.watch !== null) { Track.stopFollow(); return; }
+    if (!navigator.geolocation) return UI.toast('GPS tidak tersedia.', 'bad');
+    Track.btn = btn; btn && btn.classList.add('on'); Track.follow = true; Track.map = map; Compass.start();
+    Track.me = GpsMe(map); Track.first = true;
+    Track.chip = document.createElement('div'); Track.chip.className = 'map-panel gps-chip'; $('#mapWrap').appendChild(Track.chip); Track.paint();
+    Track.onDrag = function () { if (Track.follow) { Track.follow = false; Track.paint(); } }; map.on('dragstart', Track.onDrag);   // peta digeser tangan → auto-center mati
+    Track.watch = navigator.geolocation.watchPosition(function (p) {
+      var c = p.coords; Track.last = c; Track.me.update(c.latitude, c.longitude, c.accuracy, c.heading, c.speed);
+      if (Track.first) { Track.first = false; map.setView([c.latitude, c.longitude], Math.max(map.getZoom(), 18)); }
+      else if (Track.follow) map.panTo([c.latitude, c.longitude], { animate: true });
+      Track.paint();
+    }, function (e) { UI.toast(e.code === 1 ? 'Izin lokasi ditolak — aktifkan GPS & izin lokasi.' : 'GPS: ' + e.message, 'bad'); }, { enableHighAccuracy: true, maximumAge: 1000 });
+  },
+  setFollow: function (v) { Track.follow = v; if (v && Track.last && Track.map) Track.map.panTo([Track.last.latitude, Track.last.longitude], { animate: true }); Track.paint(); },
+  paint: function () {
+    if (!Track.chip) return; var c = Track.last;
+    Track.chip.innerHTML = '<span class="gps-acc ' + (c ? Geo.accClass(c.accuracy) : '') + '">' + ic('locate', 14) + ' ' + (c ? '±' + nf(c.accuracy, 1) + ' m' : 'mencari GPS…') + (Compass.heading !== null ? ' · ' + Compass.heading + '°' : '') + '</span>' +
+      '<button class="btn sm' + (Track.follow ? ' primary' : '') + '" id="gpsF" title="Peta otomatis mengikuti posisi Anda">Auto-center: ' + (Track.follow ? 'ON' : 'OFF') + '</button>' +
+      '<button class="btn sm" id="gpsX" title="Matikan GPS">✕</button>';
+    $('#gpsF', Track.chip).onclick = function () { Track.setFollow(!Track.follow); };
+    $('#gpsX', Track.chip).onclick = function () { Track.stopFollow(); };
+  },
+  stopFollow: function () {
+    if (Track.watch !== null) navigator.geolocation.clearWatch(Track.watch); Track.watch = null;
+    if (Track.me) Track.me.remove(); Track.me = null; if (Track.chip) Track.chip.remove(); Track.chip = null; Track.last = null;
+    if (Track.map && Track.onDrag) Track.map.off('dragstart', Track.onDrag);
+    if (Track.btn) Track.btn.classList.remove('on');
+  }
+};
+Compass.sub(function () { if (Track.chip && Track.watch !== null) { var s = Track.chip.querySelector('.gps-acc'); if (s && Track.last) s.innerHTML = ic('locate', 14) + ' ±' + nf(Track.last.accuracy, 1) + ' m · ' + Compass.heading + '°'; } });
 </script>
 
   <script>
@@ -2495,7 +2584,10 @@ var Survey = {
     var vx = pts.filter(function (p) { return p.kind === 'vertex'; });
     var use = Survey.cfg.mode === 'vertex' && vx.length >= 3 ? vx : pts;
     var r = use.map(function (p) { return [p.lng, p.lat]; });
-    return Survey.cfg.simplify > 0 && r.length > 10 ? rdp(r, Survey.cfg.simplify) : r;
+    r = Survey.cfg.simplify > 0 && r.length > 10 ? rdp(r, Survey.cfg.simplify) : r;
+    Survey.loopsFixed = 0;
+    if (r.length > 3 && Geo.selfIntersect(r)) { var fx = Geo.fixLoops(r); if (fx.fixed && !Geo.selfIntersect(fx.ring)) { r = fx.ring; Survey.loopsFixed = fx.fixed; } }   // jejak GPS "goyang" → simpul dirapikan otomatis
+    return r;
   }
 };
 /** Penyederhanaan Ramer–Douglas–Peucker dalam meter (UTM) — menjaga geometri tetap kecil (< 45.000 karakter/sel) */
@@ -2507,7 +2599,7 @@ function rdp(ring, tol) {
     if (md > tol && mi > 0) { keep[mi] = true; stack.push([s[0], mi], [mi, s[1]]); } }
   return ring.filter(function (p, i) { return keep[i]; });
 }
-Router.reg('survey', { perm: 'survey', full: true, leave: function () { Survey.stopGps(); Survey.releaseWake(); PMT.detach('survey'); },
+Router.reg('survey', { perm: 'survey', full: true, leave: function () { Survey.stopGps(); Survey.releaseWake(); PMT.detach('survey'); try { if (Survey.lyr && Survey.lyr.me) Survey.lyr.me.remove(); } catch (e) { /* abaikan */ } if (Survey.lyr) Survey.lyr.me = null; },
   render: function (el, p) {
     var draft = LS.get('svdraft', null);
     Survey.st = draft && draft.points && draft.points.length && (!p.parcel || draft.parcel_id === p.parcel) ? draft : Survey.blank(p.parcel);
@@ -2518,20 +2610,25 @@ Router.reg('survey', { perm: 'survey', full: true, leave: function () { Survey.s
 Survey.init = function () {
   var s = S.boot.settings.map, map = Survey.map = L.map('map', { zoomControl: false, preferCanvas: true, maxZoom: 22 }).setView(s.center, s.zoom);
   var b = BASEMAPS[MapV.st.base] || BASEMAPS.sat; L.tileLayer(b[1], { attribution: b[2], maxNativeZoom: b[3], maxZoom: 22, subdomains: 'abc' }).addTo(map);
-  L.control.zoom({ position: 'bottomright' }).addTo(map);
+  L.control.zoom({ position: 'bottomright' }).addTo(map); compactAttribution(map);
+  Survey.follow = LS.get('svfollow', true);
+  map.on('dragstart', function () { if (Survey.follow) { Survey.follow = false; LS.set('svfollow', false); Survey.paintFollow(); } });
   Survey.lyr = { ref: L.layerGroup().addTo(map), line: L.polyline([], { color: '#ff00ff', weight: 3 }).addTo(map), poly: L.polygon([], { color: '#ff00ff', weight: 1, fillOpacity: .12 }).addTo(map), pts: L.layerGroup().addTo(map), me: null, acc: null };
   var bd = orgFilter(Data.peek('Bidang') || []).filter(function (x) { return x.deleted != 1; });
   var methods = ['Smartphone GPS', 'External GNSS', 'GNSS RTK', 'PPK', 'Total Station', 'Drone'];
   $('#svTop').innerHTML = '<div class="row"><select id="svP" style="flex:2;min-width:140px"><option value="">— pilih bidang —</option>' + bd.map(function (x) { return '<option value="' + x.id + '"' + (x.id === Survey.st.parcel_id ? ' selected' : '') + '>' + esc(x.code + ' · ' + (x.name || '')) + ' (' + esc(STATUS_LABEL[x.status] || x.status) + ')</option>'; }).join('') + '</select>' +
     '<select id="svM" style="flex:1;min-width:120px">' + methods.map(function (m) { return '<option' + (m === Survey.st.method ? ' selected' : '') + '>' + m + '</option>'; }).join('') + '</select>' +
-    '<button class="btn sm" id="svCfg">' + ic('cog') + '</button><button class="btn sm" id="svSrc" title="Sumber GNSS eksternal / impor">' + ic('up') + '</button>' + (can('parcel', 'C') ? '<button class="btn sm" id="svNew" title="Bidang baru">' + ic('plus') + '</button>' : '') + '</div>';
+    '<button class="btn sm" id="svFol" title="Peta otomatis mengikuti posisi GPS (auto-center)"></button><button class="btn sm" id="svCfg">' + ic('cog') + '</button><button class="btn sm" id="svSrc" title="Sumber GNSS eksternal / impor">' + ic('up') + '</button>' + (can('parcel', 'C') ? '<button class="btn sm" id="svNew" title="Bidang baru">' + ic('plus') + '</button>' : '') + '</div>';
   $('#svP').onchange = function () { Survey.st.parcel_id = this.value; Survey.save(); Survey.showRef(); };
   $('#svM').onchange = function () { Survey.st.method = this.value; Survey.save(); };
   $('#svCfg').onclick = Survey.settings; $('#svSrc').onclick = Survey.sources;
+  $('#svFol').onclick = function () { Survey.follow = !Survey.follow; LS.set('svfollow', Survey.follow); Survey.paintFollow(); if (Survey.follow && Survey.st.cur) map.panTo([Survey.st.cur.lat, Survey.st.cur.lng]); Compass.start(); };
+  Survey.paintFollow();
   if ($('#svNew')) $('#svNew').onclick = function () { UI.form('Bidang', null, { defaults: { status: 'draft' } }).then(function (x) { if (x) { Data.list('Bidang', true).then(function () { Survey.st.parcel_id = x.id; Survey.save(); Router.refresh(); }); } }); };
   Survey.showRef(); Survey.drawTrack(); Survey.bar(); Survey.startGps();
   PMT.attach(map, 'survey', { control: true, silent: true });
 };
+Survey.paintFollow = function () { var b = $('#svFol'); if (!b) return; b.className = 'btn sm' + (Survey.follow ? ' primary' : ''); b.innerHTML = ic('locate') + (Survey.follow ? ' Ikuti' : ' Bebas'); };
 Survey.showRef = function () {
   Survey.lyr.ref.clearLayers();
   var b = (Data.peek('Bidang') || []).filter(function (x) { return x.id === Survey.st.parcel_id; })[0];
@@ -2544,7 +2641,8 @@ Survey.bar = function () {
     '<div class="row">' + (!st.recording ? '<button class="btn primary sp" id="svGo">' + ic('play') + ' Mulai rekam</button>' : (st.paused ? '<button class="btn primary sp" id="svRes">' + ic('play') + ' Lanjut</button>' : '<button class="btn acc sp" id="svPau">' + ic('pause') + ' Jeda</button>')) +
     '<button class="btn sp" id="svVx" title="Rata-rata ' + Survey.cfg.avgSec + ' dtk">' + ic('pin') + ' Ambil titik</button><button class="btn" id="svMk" title="Titik penting + catatan">' + ic('info') + '</button><button class="btn" id="svUn" title="Urungkan">↶</button>' +
     '<button class="btn primary" id="svFin"' + (ring.length >= 3 ? '' : ' disabled') + '>' + ic('check') + ' Selesai</button><button class="btn danger" id="svClr" title="Buang draf">' + ic('trash') + '</button></div>' +
-    (bad ? '<p class="tiny err" style="margin:0">Jalur berpotongan sendiri — gunakan mode “titik sudut” atau urungkan titik.</p>' : '') +
+    (bad ? '<p class="tiny err" style="margin:0">Jalur berpotongan sendiri dan tidak bisa dirapikan otomatis — urungkan beberapa titik terakhir atau gunakan mode “titik sudut”.</p>' : '') +
+    (!bad && Survey.loopsFixed ? '<p class="tiny" style="margin:0;color:var(--warn)">' + Survey.loopsFixed + ' simpul kecil akibat GPS goyang dirapikan otomatis (titik asli tetap tersimpan). Periksa bentuknya di peta.</p>' : '') +
     '<p class="tiny muted" style="margin:0">Mode: ' + (Survey.cfg.mode === 'vertex' ? 'titik sudut (manual)' : 'jejak otomatis + titik') + ' · filter akurasi ≤ ' + Survey.cfg.maxAcc + ' m · jarak min ' + Survey.cfg.minDist + ' m. Akurasi HP adalah estimasi perangkat, bukan uji ketelitian.</p>';
   var on = function (id, fn) { var e = $('#' + id); if (e) e.onclick = fn; };
   on('svGo', function () { if (!st.parcel_id) return UI.toast('Pilih bidang terlebih dahulu.', 'warn'); st.recording = true; st.paused = false; st.started_at = st.started_at || new Date().toISOString(); Survey.save(); Survey.keepAwake(); Survey.bar(); });
@@ -2564,8 +2662,8 @@ Survey.onPos = function (lat, lng, acc, alt, fix) {
   var st = Survey.st, map = Survey.map; if (!map || !st) return;
   st.cur = { lat: lat, lng: lng, acc: acc, alt: alt, fix: fix || '' };
   var ll = [lat, lng];
-  if (!Survey.lyr.me) { Survey.lyr.me = L.circleMarker(ll, { radius: 8, color: '#fff', weight: 3, fillColor: '#1a73e8', fillOpacity: 1 }).addTo(map); Survey.lyr.acc = L.circle(ll, { radius: acc, color: '#1a73e8', weight: 1, fillOpacity: .08 }).addTo(map); map.setView(ll, 19); }
-  else { Survey.lyr.me.setLatLng(ll); Survey.lyr.acc.setLatLng(ll).setRadius(acc); if (st.recording && !st.paused) map.panTo(ll); }
+  if (!Survey.lyr.me) { Survey.lyr.me = GpsMe(map); Survey.lyr.me.update(lat, lng, acc, Survey.hd, Survey.sp); map.setView(ll, 19); }
+  else { Survey.lyr.me.update(lat, lng, acc, Survey.hd, Survey.sp); if (Survey.follow) map.panTo(ll); }
   if (Survey._samples) Survey._samples.push(st.cur);
   if (st.recording && !st.paused && Survey.cfg.mode === 'track' && acc <= Survey.cfg.maxAcc) {
     var last = st.points.filter(function (p) { return p.kind !== 'marker'; }).slice(-1)[0];
@@ -2576,7 +2674,8 @@ Survey.onPos = function (lat, lng, acc, alt, fix) {
 Survey.startGps = function () {
   if (Survey.serial) return;
   if (!navigator.geolocation) return UI.toast('GPS tidak tersedia di perangkat ini.', 'bad');
-  Survey.watch = navigator.geolocation.watchPosition(function (p) { Survey.onPos(p.coords.latitude, p.coords.longitude, p.coords.accuracy, p.coords.altitude); },
+  Compass.start();
+  Survey.watch = navigator.geolocation.watchPosition(function (p) { Survey.hd = p.coords.heading; Survey.sp = p.coords.speed; Survey.onPos(p.coords.latitude, p.coords.longitude, p.coords.accuracy, p.coords.altitude); },
     function (e) { UI.toast(e.code === 1 ? 'Izin lokasi ditolak — aktifkan GPS & izin lokasi.' : 'GPS: ' + e.message, 'bad'); }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
 };
 Survey.stopGps = function () { if (Survey.watch !== null && Survey.watch !== undefined) navigator.geolocation.clearWatch(Survey.watch); Survey.watch = null; if (Survey.serial) { try { Survey.serial.cancel(); } catch (e) {} Survey.serial = null; } };
@@ -2999,7 +3098,7 @@ Router.reg('about', { render: function (el) {
   el.innerHTML = vh('Tentang Aplikasi') + '<div class="grid g2"><div class="card"><div class="row" style="gap:14px"><img src="' + (S.boot.settings.brand.logo || App.defLogo()) + '" style="width:72px;height:72px;border-radius:16px;cursor:zoom-in" onclick="UI.zoom(this.src)"><div><h2 style="margin:0">' + esc(S.boot.settings.brand.title) + '</h2><div class="muted">' + esc(a.name) + '</div></div></div>' +
     '<div class="pop-r" style="margin-top:12px"><span>Versi aplikasi</span><b>' + esc(a.version) + '</b></div><div class="pop-r"><span>Build</span><b>' + esc(a.build) + '</b></div><div class="pop-r"><span>Lisensi</span><b>' + esc(L.label) + (L.exp ? ' · s/d ' + fdate(L.exp) : '') + '</b></div><div class="pop-r"><span>ID instalasi</span><b>' + esc(L.install_id) + '</b></div>' +
     '<div class="pop-r"><span>Antrean offline</span><b>' + S.queue.length + ' data</b></div><div class="row" style="margin-top:12px"><button class="btn" onclick="Legal.show(\'terms\')">Syarat & Ketentuan</button><button class="btn" onclick="Legal.show(\'privacy\')">Pemberitahuan Privasi</button>' + (S.queue.length ? '<button class="btn primary" onclick="Sync.flush()">Sinkronkan sekarang</button>' : '') + '</div></div>' +
-    '<div class="card"><h3>Riwayat versi</h3><p><b>1.3.2</b> — perbaikan: setelah menyimpan batas bidang hasil gambar/ketuk di peta, bidang &amp; titik pohon tidak hilang lagi (tanpa perlu refresh); saat menggambar batas atau mengukur, ketukan di atas bidang/pohon yang sudah ada kini menambah titik (bukan membuka info).</p><p><b>1.3.1</b> — perbaikan: titik pohon kembali tampil di atas bidang lahan; cetak peta PDF kini dengan <b>pratinjau</b> halaman sebelum diunduh.</p><p><b>1.3.0</b> — peta: info lengkap bidang saat diklik (luas, keliling, petani, kebun, jumlah pohon) &amp; tombol Zoom ke bidang / layer / foto udara; Data Pohon: pilih banyak sekaligus, hapus terpilih, geser posisi pohon di peta (seret atau panah per 0,2–5 m, cocok untuk foto udara); foto: ubah kategori/keterangan &amp; hapus foto salah unggah.</p><p><b>1.2.1</b> — perbaikan: peta tidak error bila ada laporan hama tanpa koordinat; kode pohon otomatis (grid tanam / impor SHP) melanjutkan nomor terbesar sehingga tidak bentrok; ekspor GeoJSON tanpa fitur kosong; siap pindah foto ke Supabase.</p><p><b>1.2.0</b> — impor/ekspor Shapefile (SHP) di peta, impor/ekspor Excel di semua tabel data, pratinjau grid tanam langsung di peta, perbaikan simpan grid &amp; unggah foto/video/PDF untuk Super Admin, label koordinat cetak peta tidak terpotong, tombol Tes koneksi AI.</p><p><b>1.1.0</b> — layer foto udara drone PMTiles (online URL &amp; offline file besar), ortho ikut tercetak di PDF, menu Mode Lapangan, tombol mengambang PWA dapat digeser/diciutkan/disembunyikan.</p><p><b>1.0.0</b> (' + esc(a.build) + ') — rilis awal: multi-tenant RBAC, survei GPS/GNSS/RTK, peta GIS, digital tree + QR, dokumentasi, operasional, panen, inventori, keuangan double-entry, AI assistant, cetak peta PDF, PWA offline.</p>' +
+    '<div class="card"><h3>Riwayat versi</h3><p><b>1.3.3</b> — peta: teks sumber peta &amp; skala tidak lagi menutupi tombol; GPS dengan panah arah hadap perangkat (kompas) dan <b>Auto-center ON/OFF</b> (otomatis OFF saat peta digeser); Ukur Lahan: jejak GPS yang berpotongan sendiri (simpul kecil karena GPS goyang) dirapikan otomatis sehingga pengukuran bisa disimpan.</p><p><b>1.3.2</b> — perbaikan: setelah menyimpan batas bidang hasil gambar/ketuk di peta, bidang &amp; titik pohon tidak hilang lagi (tanpa perlu refresh); saat menggambar batas atau mengukur, ketukan di atas bidang/pohon yang sudah ada kini menambah titik (bukan membuka info).</p><p><b>1.3.1</b> — perbaikan: titik pohon kembali tampil di atas bidang lahan; cetak peta PDF kini dengan <b>pratinjau</b> halaman sebelum diunduh.</p><p><b>1.3.0</b> — peta: info lengkap bidang saat diklik (luas, keliling, petani, kebun, jumlah pohon) &amp; tombol Zoom ke bidang / layer / foto udara; Data Pohon: pilih banyak sekaligus, hapus terpilih, geser posisi pohon di peta (seret atau panah per 0,2–5 m, cocok untuk foto udara); foto: ubah kategori/keterangan &amp; hapus foto salah unggah.</p><p><b>1.2.1</b> — perbaikan: peta tidak error bila ada laporan hama tanpa koordinat; kode pohon otomatis (grid tanam / impor SHP) melanjutkan nomor terbesar sehingga tidak bentrok; ekspor GeoJSON tanpa fitur kosong; siap pindah foto ke Supabase.</p><p><b>1.2.0</b> — impor/ekspor Shapefile (SHP) di peta, impor/ekspor Excel di semua tabel data, pratinjau grid tanam langsung di peta, perbaikan simpan grid &amp; unggah foto/video/PDF untuk Super Admin, label koordinat cetak peta tidak terpotong, tombol Tes koneksi AI.</p><p><b>1.1.0</b> — layer foto udara drone PMTiles (online URL &amp; offline file besar), ortho ikut tercetak di PDF, menu Mode Lapangan, tombol mengambang PWA dapat digeser/diciutkan/disembunyikan.</p><p><b>1.0.0</b> (' + esc(a.build) + ') — rilis awal: multi-tenant RBAC, survei GPS/GNSS/RTK, peta GIS, digital tree + QR, dokumentasi, operasional, panen, inventori, keuangan double-entry, AI assistant, cetak peta PDF, PWA offline.</p>' +
     '<h3>Komponen pihak ketiga</h3><ul class="tiny"><li>Leaflet 1.9.4 — BSD-2-Clause</li><li>jsPDF 2.5.1 — MIT</li><li>qrcode-generator 1.4.4 — MIT</li><li>jsQR 1.4.0 — Apache-2.0</li><li>PMTiles 4.5.0 (Protomaps) — BSD-3-Clause</li><li>Font Inter — SIL Open Font License 1.1</li><li>Data peta © OpenStreetMap contributors (ODbL); tiles OpenTopoMap (CC-BY-SA); citra © Esri & penyedia (sesuai ketentuan Esri)</li></ul>' +
     '<p class="tiny muted">Ikon antarmuka digambar khusus untuk aplikasi ini.</p></div></div>';
 } });
