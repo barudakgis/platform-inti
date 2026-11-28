@@ -40,6 +40,9 @@ export function formDialog({ title, fields, submitText = 'Simpan', danger = fals
         control = `<select id="${id}" name="${esc(f.name)}" ${req}>${f.options
           .map((o) => `<option value="${esc(o.value)}" ${o.value === f.value ? 'selected' : ''}>${esc(o.label)}</option>`)
           .join('')}</select>`;
+      } else if (f.type === 'checks') {
+        const sel = new Set(f.value || []);
+        control = `<div id="${id}" class="checks">${(f.options || []).map((o) => `<label><input type="checkbox" name="${esc(f.name)}" value="${esc(o.value)}" ${sel.has(o.value) ? 'checked' : ''} ${o.disabled ? 'disabled' : ''}> ${esc(o.label)}</label>`).join('') || '<small class="muted">Belum ada aplikasi berlisensi.</small>'}</div>`;
       } else if (f.type === 'textarea') {
         control = `<textarea id="${id}" name="${esc(f.name)}" rows="3" ${req} ${ph}>${esc(f.value)}</textarea>`;
       } else {
@@ -63,7 +66,9 @@ export function formDialog({ title, fields, submitText = 'Simpan', danger = fals
     dlg.addEventListener('cancel', (e) => { e.preventDefault(); close(null); });
     form.onsubmit = (e) => {
       e.preventDefault();
-      const values = Object.fromEntries(new FormData(form).entries());
+      const fd = new FormData(form);
+      const values = Object.fromEntries(fd.entries());
+      fields.filter((f) => f.type === 'checks').forEach((f) => { values[f.name] = fd.getAll(f.name); });
       close(values);
     };
     dlg.showModal();
